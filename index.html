@@ -108,21 +108,162 @@ footer p{margin:5px auto;max-width:760px}
 </style>
 
 <style>
-.concept-message {
-  margin: 22px 0; padding: 24px 18px; border-radius: 22px;
-  background: linear-gradient(145deg, #fff8e8 0%, #fff0d8 48%, #f1f7ff 100%);
-  border: 1px solid #ead9b8; color: #51432f; text-align: center;
-}
-.concept-message-inner { max-width: 760px; margin: 0 auto; }
-.concept-kicker { font-size: .9rem; font-weight: 700; letter-spacing: .08em; color: #8a6a36; }
-.concept-message h2 { margin: 10px 0 8px; font-size: clamp(1.65rem, 5vw, 2.25rem); color: #62451d; line-height: 1.35; }
-.concept-message h3 { margin: 0 0 20px; font-size: clamp(1.05rem, 3.6vw, 1.35rem); color: #76572a; }
-.concept-message p { margin: 8px 0; line-height: 1.8; }
-.concept-message-divider { width: 62px; height: 2px; margin: 20px auto; background: #d8bd8a; }
-.concept-message .concept-emphasis { font-size: 1.15rem; font-weight: 800; color: #62451d; }
-.concept-message .concept-last { margin-top: 16px; font-size: 1.25rem; font-weight: 800; color: #356b9a; }
-</style>
+/* =====================================
+   こころ晴れバレ：コンセプトデザイン
+   ===================================== */
 
+.concept-message {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin: 22px 0;
+  padding: 30px 18px 28px;
+  border-radius: 24px;
+  border: 1px solid #b9ddf4;
+  background:
+    radial-gradient(ellipse at 10% 15%, rgba(255,255,255,.85), transparent 35%),
+    radial-gradient(ellipse at 90% 20%, rgba(255,255,255,.7), transparent 32%),
+    linear-gradient(180deg, #83d0ff 0%, #c8edff 48%, #f0faff 100%);
+  color: #244b69;
+  text-align: center;
+}
+
+/* コンテンツの幅 */
+.concept-message-inner {
+  position: relative;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* 七色の虹 */
+.concept-message-inner::before {
+  content: "";
+  display: block;
+  width: min(260px, 78%);
+  height: 130px;
+  margin: 0 auto 4px;
+  border-radius: 140px 140px 0 0;
+  background: radial-gradient(
+    ellipse at 50% 100%,
+    transparent 0 38%,
+    #ed4141 39% 44%,
+    #ff9638 45% 50%,
+    #ffe34c 51% 56%,
+    #43b96b 57% 62%,
+    #55c9e9 63% 68%,
+    #3979db 69% 74%,
+    #9560c9 75% 80%,
+    transparent 81%
+  );
+  filter: drop-shadow(0 3px 3px rgba(40, 90, 130, .12));
+}
+
+/* 白い雲 */
+.concept-message-inner::after {
+  content: "";
+  position: absolute;
+  top: 86px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(290px, 90%);
+  height: 35px;
+  background:
+    radial-gradient(ellipse at 20% 80%, #fff 0 22%, transparent 23%),
+    radial-gradient(ellipse at 38% 55%, #fff 0 28%, transparent 29%),
+    radial-gradient(ellipse at 58% 75%, #fff 0 25%, transparent 26%),
+    radial-gradient(ellipse at 78% 65%, #fff 0 25%, transparent 26%);
+  opacity: .95;
+  pointer-events: none;
+}
+
+/* 文字を雲より前に */
+.concept-message-inner > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* 見出し */
+.concept-kicker {
+  margin: 8px 0;
+  font-size: .95rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: #28658e;
+}
+
+/* メインメッセージ */
+.concept-message h2 {
+  margin: 12px 0 10px;
+  font-size: clamp(1.75rem, 5vw, 2.4rem);
+  font-weight: 800;
+  color: #174c78;
+  line-height: 1.4;
+  text-shadow: 0 1px 2px rgba(255,255,255,.5);
+}
+
+/* サブタイトル */
+.concept-message h3 {
+  margin: 0 0 22px;
+  font-size: clamp(1.05rem, 3.6vw, 1.4rem);
+  font-weight: 800;
+  color: #d34f83;
+  line-height: 1.6;
+}
+
+/* 本文 */
+.concept-message p {
+  margin: 9px 0;
+  line-height: 1.9;
+  font-size: 1rem;
+  color: #294f6c;
+}
+
+/* 区切り */
+.concept-message-divider {
+  width: 68px;
+  height: 3px;
+  margin: 22px auto;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #75c9ee, #f3c75d, #e78aaa);
+}
+
+/* 希望のメッセージ */
+.concept-message .concept-emphasis {
+  margin: 18px 0;
+  font-size: clamp(1.1rem, 3.8vw, 1.3rem);
+  font-weight: 800;
+  color: #a87518;
+}
+
+/* 最後のメッセージ */
+.concept-message .concept-last {
+  margin-top: 20px;
+  font-size: clamp(1.2rem, 4vw, 1.5rem);
+  font-weight: 800;
+  color: #d34f83;
+}
+
+/* スマートフォン向け */
+@media (max-width: 480px) {
+  .concept-message {
+    padding: 24px 13px;
+    border-radius: 19px;
+  }
+
+  .concept-message p {
+    font-size: .96rem;
+    line-height: 1.85;
+  }
+
+  .concept-message-inner::before {
+    height: 110px;
+  }
+
+  .concept-message-inner::after {
+    top: 72px;
+  }
+}
+</style>
 </head>
 <body>
 
