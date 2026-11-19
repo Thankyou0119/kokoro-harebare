@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>名古屋高速パトロールDX v34 - C1都心環状線</title>
+<style>
+  * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #111; color: #fff; overflow: hidden;
+    font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #game-container {
+    width: 100%; max-width: 440px; height: 100%; max-height: 760px;
+    background: #1a1a1a; border: 2px solid #444;
+    display: flex; flex-direction: column; position: relative; overflow: hidden;
+  }
+  #led-board {
+    background: #080808; border-bottom: 3px solid #333;
+    padding: 6px 10px; flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 4px; font-family: monospace;
+  }
+  .led-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; font-weight: bold; color: #ffcc00; text-shadow: 0 0 5px #ff9900;
+  }
+  .c1-badge {
+    background: #006633; color: #fff; border: 2px solid #fff;
+    border-radius: 50%; width: 24px; height: 24px; display: inline-flex;
+    align-items: center; justify-content: center; font-weight: bold; font-size: 11px;
+    margin-right: 5px;
+  }
+  .led-stats {
+    font-size: 12px; color: #00ff66; text-shadow: 0 0 4px #00cc44;
+    background: #111; padding: 2px 8px; border-radius: 3px; border: 1px solid #2a2a2a;
+    display: flex; justify-content: space-between;
+  }
+  #led-main {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #000; border: 1px solid #333; padding: 5px 8px; min-height: 72px;
+  }
+  #led-text {
+    font-size: 14px; line-height: 1.45; font-weight: bold;
+    color: #00ff66; text-shadow: 0 0 5px #00cc44; flex: 1; padding-right: 6px;
+  }
+  #led-text.led-work {
+    color: #ffe45c !important; text-shadow: 0 0 6px #ff8c00 !important;
+    background: #241600; border: 1px solid #a86600; border-radius: 4px;
+    padding: 5px 7px; animation: workPulse .9s ease-in-out infinite alternate;
+  }
+  @keyframes workPulse { from { opacity: .82; } to { opacity: 1; } }
+  .led-orange { color: #ff9900 !important; text-shadow: 0 0 5px #ff6600 !important; }
+  .led-red { color: #ff3333 !important; text-shadow: 0 0 5px #cc0000 !important; }
+
+  #canvas-wrap {
+    flex: 1; min-height: 0; position: relative; background: #2c2c2c; overflow: hidden;
+  }
+  canvas#game-canvas { width: 100%; height: 100%; display: block; }
+
+  #sign-banner {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    background: #006633; border: 2px solid #fff; border-radius: 6px;
+    padding: 5px 10px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+    width: 88%; max-width: 300px; display: none; z-index: 5;
+  }
+  #sign-banner.exit-sign { background:#006633; border-color:#eaffea; }
+  #sign-banner.jct-sign { background:#064b78; border-color:#e1f4ff; }
+  #sign-banner.work-sign { background:#7a3900; border-color:#ffcf70; }
+  #sign-banner.lane-sign { background:#4b3a00; border-color:#ffe27a; }
+  #sign-code {
+    display: inline-block; background: #fff; color: #006633;
+    font-weight: bold; padding: 1px 5px; border-radius: 3px; font-size: 11px; margin-right: 5px;
+  }
+  #sign-title { font-size: 15px; font-weight: bold; }
+  #sign-sub { font-size: 11px; color: #ffeb3b; margin-top: 2px; font-weight: bold; }
+
+  #controls {
+    height: 72px; flex-shrink: 0; background: #181818; border-top: 2px solid #333;
+    display: flex; gap: 6px; padding: 8px;
+  }
+  .ctrl-btn {
+    flex: 1; background: #2a2a2a; border: 2px solid #555; border-radius: 8px;
+    color: #fff; font-size: 14px; font-weight: bold; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; touch-action: manipulation;
+  }
+  .ctrl-btn:active { background: #006633; border-color: #00ff66; }
+  .brake-btn {
+    background: #441515; border-color: #aa3333; color: #ffaaaa; flex: 0.95;
+  }
+  .brake-btn:active, .brake-active {
+    background: #cc0000 !important; border-color: #ff6666 !important; color: #fff !important;
+  }
+
+  .overlay {
+    position: absolute; inset: 0; background: rgba(0, 0, 0, 0.9);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 14px; text-align: center; z-index: 10;
+  }
+  .board-box {
+    max-height: min(78%, 560px); overflow-y: auto;
+    background: #050505; border: 2px solid #444; border-radius: 6px;
+    padding: 12px; width: 100%; max-width: 340px; margin-bottom: 12px;
+    font-family: monospace;
+  }
+  .blink { animation: blinker 1s linear infinite; }
+  @keyframes blinker { 50% { opacity: 0.2; } }
+  .start-btn {
+    background: #006633; color: #fff; border: 2px solid #fff;
+    padding: 10px 22px; font-size: 16px; font-weight: bold; border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .result-overlay { background:linear-gradient(145deg,rgba(4,18,38,.97),rgba(0,48,78,.96) 55%,rgba(5,20,42,.98)); overflow:hidden; justify-content:flex-start; padding:7px 9px; gap:5px; }
+  .title-overlay { padding:8px; gap:6px; overflow:hidden; }
+  .title-overlay .board-box { max-height:none; overflow:hidden; flex:0 1 auto; margin:0 0 3px; padding:8px; }
+  .title-overlay .title-copy { font-size:clamp(8px,2.25vw,10px) !important; line-height:1.32 !important; margin-top:5px !important; }
+  .title-overlay .title-brand { font-size:clamp(10px,2.8vw,12px) !important; margin-bottom:2px !important; }
+  .title-overlay .title-name { font-size:clamp(16px,4.6vw,20px) !important; line-height:1.15; }
+  .title-actions { display:flex; flex-direction:column; gap:6px; width:100%; max-width:340px; flex:0 0 auto; }
+  .title-actions .start-btn { width:100%; padding:9px 12px; font-size:clamp(13px,3.6vw,16px); }
+  .standalone-ranking { background:linear-gradient(145deg,rgba(4,18,38,.98),rgba(0,48,78,.98) 55%,rgba(5,20,42,.99)); overflow:hidden; padding:8px; gap:8px; }
+  .standalone-ranking-card { width:100%; max-width:350px; min-height:0; max-height:calc(100% - 48px); overflow:hidden; padding:12px 10px; border:2px solid #69c8ff; border-radius:15px; background:linear-gradient(160deg,#102d4c,#071522 70%); box-shadow:0 0 24px rgba(40,170,255,.35); }
+  .standalone-ranking-title { color:#ffe28a; font-size:17px; font-weight:900; margin-bottom:7px; }
+  .standalone-ranking .ranking-list { height:220px; max-height:min(32vh,220px); overflow-y:auto; }
+  .standalone-ranking .ranking-status { min-height:12px; }
+  .standalone-ranking .start-btn { flex:0 0 auto; width:min(100%,350px); padding:9px 16px; }
+  .result-card { max-height:calc(100% - 48px); overflow:hidden; }
+  .result-card { width:100%; max-width:350px; max-height:none; overflow:visible; flex:0 0 auto; padding:11px 10px; border:2px solid #69c8ff; border-radius:16px; background:linear-gradient(160deg,#102d4c,#071522 70%); box-shadow:0 0 24px rgba(40,170,255,.35),inset 0 0 18px rgba(90,180,255,.10); }
+  .result-kicker { color:#9bdcff; font-size:10px; letter-spacing:2px; font-weight:bold; }
+  .result-title { color:#fff; font-size:20px; font-weight:900; margin:4px 0 5px; text-shadow:0 0 12px #39aaff; }
+  .result-reason { color:#ffd66b; font-size:12px; font-weight:bold; margin:3px 0 7px; }
+  .score-panel { background:linear-gradient(135deg,#fff8d8,#ffd35c); color:#173451; border:3px solid #fff; border-radius:12px; padding:6px 9px 7px; box-shadow:0 4px 14px rgba(0,0,0,.35); }
+  .score-label { font-size:12px; font-weight:bold; letter-spacing:1px; }
+  .score-value { color:#073d72; font-size:clamp(36px,11vw,52px); line-height:1.08; font-weight:900; text-shadow:0 2px 0 rgba(255,255,255,.8); font-family:system-ui,sans-serif; }
+  .score-value small { font-size:18px; margin-left:4px; }
+  .result-stats { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin:7px 0; }
+  .result-stats div { background:#17466b; border:1px solid #4e9ac8; border-radius:8px; padding:6px; }
+  .result-stats small { display:block; color:#bce8ff; font-size:10px; }
+  .result-stats strong { color:#fff; font-size:17px; }
+  .ranking-heading { color:#ffe28a; font-size:12px; font-weight:bold; margin-top:5px; }
+  .ranking-list { color:#fff; font-size:13px; line-height:1.42; margin-top:4px; height:110px; max-height:110px; overflow-y:auto; overscroll-behavior:contain; padding:5px 7px; border:1px solid rgba(130,190,225,.35); border-radius:8px; background:rgba(0,0,0,.22); scroll-behavior:auto; }
+  .ranking-row { display:flex; justify-content:space-between; gap:8px; padding:2px 5px; border-bottom:1px solid rgba(255,255,255,.08); white-space:nowrap; }
+  .ranking-row:last-child { border-bottom:0; }
+  .ranking-row.is-player { color:#ffe58a; background:rgba(255,211,75,.17); border-left:3px solid #e6bd4c; font-weight:900; }
+  .ranking-row .rank-name { overflow:hidden; text-overflow:ellipsis; }
+  .my-rank-reveal { display:none; margin:10px 0; padding:13px 9px; border:2px solid #ffd65a; border-radius:12px; text-align:center; color:#fff; background:radial-gradient(circle at 50% 0%,rgba(255,213,75,.3),rgba(45,34,8,.96) 68%); box-shadow:0 0 18px rgba(255,205,65,.35); }
+  .my-rank-reveal .my-rank-caption { color:#ffe9a3; font-size:12px; font-weight:900; letter-spacing:1px; }
+  .my-rank-reveal .my-rank-number { color:#ffdf64; font-size:42px; line-height:1.2; font-weight:1000; text-shadow:0 0 12px rgba(255,202,48,.7); margin:4px 0; }
+  .my-rank-reveal .my-rank-name { font-size:23px; font-weight:900; }
+  .ranking-status { color:#bfe8ff; font-size:11px; text-align:center; margin:4px 0; }
+  .result-prompt { color:#d8f2ff; font-weight:bold; font-size:13px; margin:7px 0; }
+
+
+  /* V28：スマホランキング画面の高さ最適化 */
+  .name-entry-panel { display:none; margin:7px 0 6px; padding:8px; border:1px solid #6aa9d4; border-radius:10px; background:rgba(0,0,0,.28); }
+  .name-entry-heading { color:#ffe28a; font-size:14px; font-weight:900; margin-bottom:5px; }
+  .name-entry-time { color:#fff; font-size:22px; font-weight:900; font-family:monospace; margin:3px 0 8px; }
+  .name-entry-time.urgent { color:#ff3030; text-shadow:0 0 8px #ff0000; animation:nameCountdownBlink .45s steps(2,start) infinite; }
+  @keyframes nameCountdownBlink { to { visibility:hidden; } }
+  .arcade-slots { display:flex; justify-content:center; gap:9px; margin:8px 0 10px; }
+  .arcade-slot { width:54px; height:58px; display:flex; align-items:center; justify-content:center; border:2px solid #52738c; border-radius:5px; background:#02080d; color:#ffe45c; font-family:"Courier New",monospace; font-size:34px; font-weight:900; letter-spacing:1px; text-shadow:2px 0 #b77900,-2px 0 #b77900,0 2px #b77900,0 -2px #b77900,0 0 9px #ffcf32; }
+  .arcade-slot.active { border-color:#fff078; background:#192a35; box-shadow:0 0 12px rgba(255,220,65,.7); animation:slotPulse .65s steps(2,start) infinite; }
+  @keyframes slotPulse { 50% { border-color:#fff; } }
+  .name-entry-hint { color:#d8f2ff; font-size:10px; line-height:1.4; margin:4px 0 8px; }
+  .name-mobile-input { display:none; width:100%; max-width:230px; margin:8px auto; padding:9px 8px; text-align:center; text-transform:uppercase; letter-spacing:8px; font-family:"Courier New",monospace; font-size:25px; font-weight:900; color:#ffe45c; background:#02080d; border:2px solid #ffe28a; border-radius:6px; user-select:text; -webkit-user-select:text; }
+  .name-entry-nav { display:flex; gap:8px; margin:6px 0; }
+  .name-entry-nav button { flex:1; min-width:0; padding:9px 5px; border:1px solid #79a8c7; border-radius:7px; color:#fff; background:#17466b; font-size:12px; font-weight:bold; touch-action:manipulation; }
+  .name-entry-confirm { width:100%; padding:10px 8px; border:2px solid #fff; border-radius:8px; background:#006633; color:#fff; font-size:15px; font-weight:900; touch-action:manipulation; }
+  .name-entry-confirm:disabled { opacity:.42; }
+  .name-entry-input-row { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; }
+  .name-entry-input-row .arcade-slots { flex:0 1 auto; margin:8px 0 10px; }
+  .name-entry-confirm { flex:0 0 50px; width:50px; min-height:50px; padding:6px; font-size:25px; line-height:1; }
+  .name-entry-confirm:disabled { opacity:.42; }
+  .admin-panel { display:none; position:absolute; inset:0; z-index:1000; background:rgba(0,0,0,.88); align-items:center; justify-content:center; padding:18px; }
+  .admin-card { width:100%; max-width:340px; padding:18px; border:2px solid #d5a52c; border-radius:12px; background:#101820; box-shadow:0 0 22px rgba(255,190,40,.28); text-align:center; }
+  .admin-title { color:#ffd45a; font-weight:900; font-size:19px; letter-spacing:1px; margin-bottom:10px; }
+  .admin-warning { color:#ffd0d0; font-size:12px; line-height:1.6; margin:10px 0 16px; }
+  .admin-actions { display:flex; gap:9px; }
+  .admin-actions button { flex:1; padding:11px 6px; border-radius:8px; border:1px solid #fff; color:#fff; font-weight:900; }
+  #admin-clear-ranking { background:#9b2020; }
+  #admin-cancel { background:#31516b; }
+  .admin-status { min-height:18px; color:#8fffb0; font-size:12px; margin-top:10px; }
+  @media (pointer:coarse) {
+    .arcade-slots { display:none; }
+    .name-mobile-input { display:block; flex:1 1 auto; min-width:0; width:auto; max-width:230px; margin:8px 0; }
+    /* スマホ：ランキング枠を約5人分にし、戻るボタンを同一画面内に固定 */
+    .result-overlay { overflow:hidden; padding:5px 7px; gap:4px; justify-content:flex-start; }
+    .title-overlay { padding:5px 7px; gap:4px; }
+    .title-overlay .board-box { padding:6px; }
+    .title-overlay .title-copy { font-size:8px !important; line-height:1.22 !important; }
+    .title-actions { gap:5px; }
+    .title-actions .start-btn { padding:8px 10px; }
+    .standalone-ranking { padding:6px; gap:6px; }
+    .standalone-ranking-card { padding:9px 8px; }
+    .standalone-ranking-title { font-size:15px; margin-bottom:5px; }
+    .standalone-ranking .ranking-list { height:220px; max-height:min(32vh,220px); font-size:12px; line-height:1.18; padding:3px 5px; }
+    .standalone-ranking .start-btn { padding:8px 12px; font-size:14px; }
+    .result-card { width:100%; max-height:calc(100% - 52px); min-height:0; overflow:hidden; padding:7px 8px; border-radius:13px; }
+    .result-kicker { font-size:9px; letter-spacing:1.5px; }
+    .result-title { font-size:17px; margin:2px 0 3px; }
+    .result-reason { font-size:11px; margin:2px 0 4px; }
+    .score-panel { padding:4px 7px 5px; border-width:2px; }
+    .score-label { font-size:10px; }
+    .score-value { font-size:clamp(30px,8vw,40px); line-height:1.02; }
+    .score-value small { font-size:14px; }
+    .result-stats { gap:5px; margin:5px 0; }
+    .result-stats div { padding:4px; }
+    .result-stats small { font-size:9px; }
+    .result-stats strong { font-size:14px; }
+    .ranking-heading { font-size:11px; margin-top:3px; }
+    .ranking-list { height:106px; max-height:106px; font-size:12px; line-height:1.3; margin-top:3px; padding:3px 5px; }
+    .ranking-row { padding:2px 4px; gap:6px; }
+    .ranking-status { font-size:10px; margin:2px 0; }
+    .my-rank-reveal { margin:5px 0; padding:7px 6px; }
+    .my-rank-reveal .my-rank-number { font-size:32px; margin:2px 0; }
+    .my-rank-reveal .my-rank-name { font-size:19px; }
+    .result-prompt { flex:0 0 auto; font-size:11px; margin:1px 0; }
+    .result-overlay > #btn-retry { flex:0 0 auto; padding:8px 15px; font-size:14px; }
+    #admin-ready-hint { margin-top:2px !important; }
+  }
+  @media (max-height:650px) { .title-overlay { padding:4px; gap:3px; } .title-overlay .board-box { padding:5px; } .title-overlay .title-copy { font-size:7.5px !important; line-height:1.16 !important; } .title-actions .start-btn { padding:6px 9px; } .standalone-ranking { padding:4px; gap:4px; } .standalone-ranking-card { padding:7px; }  .result-overlay { padding-top:5px; } .result-card { padding:8px; } .result-title { font-size:18px; margin:2px 0 3px; } .score-value { font-size:34px; } .result-stats strong { font-size:15px; } .name-entry-panel { margin:4px 0; padding:6px; } .name-entry-nav button { padding:7px 4px; } .name-entry-confirm { padding:8px; } .result-prompt { margin:2px 0; } .result-overlay > .start-btn { padding:8px 16px; } }
+
+
+  /* V34：トップ画面とランキングの読みやすさを改善 */
+  .ranking-list { height:154px; max-height:154px; font-size:15px; line-height:1.35; }
+  .standalone-ranking .ranking-list { height:220px; max-height:min(32vh,220px); font-size:13px; line-height:1.18; }
+  .ranking-row { min-height:25px; align-items:center; padding:3px 5px; }
+  .ranking-row.podium-rank { min-height:29px; font-weight:900; }
+  .ranking-row.podium-1 { min-height:34px; font-size:1.22em; color:#ffe28a; background:linear-gradient(90deg,rgba(196,145,25,.25),rgba(196,145,25,.06)); border-left:4px solid #e7b83f; text-shadow:0 0 7px rgba(255,210,80,.35); }
+  .ranking-row.podium-2 { min-height:31px; font-size:1.12em; color:#e5edf5; background:rgba(180,195,210,.10); border-left:4px solid #b8c5d1; }
+  .ranking-row.podium-3 { min-height:30px; font-size:1.07em; color:#e8b28d; background:rgba(174,105,61,.10); border-left:4px solid #b87950; }
+  .title-overlay { padding:clamp(7px,1.8vh,15px); gap:clamp(6px,1.4vh,12px); }
+  .title-overlay .board-box { flex:0 1 auto; max-height:calc(100% - 112px); padding:clamp(8px,1.6vh,13px); }
+  .title-overlay .title-copy { font-size:clamp(9px,2.55vw,11px) !important; line-height:1.42 !important; margin-top:7px !important; }
+  .title-overlay .title-brand { font-size:clamp(10px,2.8vw,12px) !important; }
+  .title-overlay .title-name { font-size:clamp(17px,4.8vw,21px) !important; }
+  .title-actions { gap:clamp(6px,1.4vh,10px); }
+  .title-actions .start-btn { padding:clamp(8px,1.5vh,11px) 12px; }
+  .standalone-ranking-card { max-height:calc(100% - 48px); }
+  .standalone-ranking-title { font-size:clamp(17px,4.5vw,20px); }
+  @media (pointer:coarse) {
+    .title-overlay { padding:clamp(7px,1.5vh,12px); gap:clamp(6px,1.2vh,9px); }
+    .title-overlay .board-box { flex:1 1 auto; min-height:0; max-height:none; overflow:hidden; padding:clamp(7px,1.3vh,10px); }
+    .title-overlay .title-copy { font-size:clamp(9px,2.65vw,11px) !important; line-height:1.38 !important; }
+    .title-actions { flex:0 0 auto; gap:clamp(5px,1vh,8px); }
+    .title-actions .start-btn { padding:clamp(8px,1.3vh,10px) 10px; font-size:clamp(14px,3.8vw,16px); }
+    .standalone-ranking { padding:clamp(6px,1.2vh,10px); gap:clamp(6px,1.2vh,10px); }
+    .standalone-ranking-card { padding:clamp(9px,1.5vh,13px) 9px; }
+    .standalone-ranking-title { font-size:clamp(17px,4.6vw,20px); margin-bottom:6px; }
+    .standalone-ranking .ranking-list { height:220px; max-height:min(32vh,220px); font-size:12px; line-height:1.16; padding:3px 5px; }
+    .ranking-list { height:154px; max-height:154px; font-size:14px; line-height:1.32; padding:4px 5px; }
+    .ranking-row { min-height:24px; padding:3px 4px; gap:5px; }
+    .ranking-row.podium-1 { min-height:32px; font-size:1.18em; }
+    .ranking-row.podium-2 { min-height:29px; font-size:1.10em; }
+    .ranking-row.podium-3 { min-height:27px; font-size:1.05em; }
+  }
+  @media (max-height:700px) and (pointer:coarse) {
+    .title-overlay .title-copy { font-size:clamp(8.5px,2.35vw,10px) !important; line-height:1.3 !important; }
+    .title-overlay .board-box { padding:6px; }
+    .title-actions .start-btn { padding:7px 9px; }
+    .standalone-ranking .ranking-list { max-height:min(32vh,220px); }
+  }
+
+
+  /* V34：タイトル画面「ランキングを見る」専用・TOP3表彰演出 */
+  .standalone-ranking .ranking-row[data-rank-index="0"] { color:#ffe28a; font-weight:900; text-shadow:0 0 7px rgba(255,205,65,.45); }
+  .standalone-ranking .ranking-row[data-rank-index="1"] { color:#e5efff; font-weight:800; }
+  .standalone-ranking .ranking-row[data-rank-index="2"] { color:#e8b28a; font-weight:800; }
+  .result-podium { display:none; position:relative; width:100%; min-height:205px; margin-top:5px; padding:10px 5px 8px; overflow:hidden; border:2px solid #d7b75b; border-radius:13px; background:radial-gradient(ellipse at 50% 0%,rgba(255,219,105,.28),rgba(8,22,42,.97) 68%); box-shadow:inset 0 0 24px rgba(255,211,91,.13),0 0 20px rgba(255,193,55,.22); }
+  .result-podium.show { display:block; animation:podiumArrive .65s ease-out both; }
+  @keyframes podiumArrive { from { opacity:0; transform:scale(.94); } to { opacity:1; transform:scale(1); } }
+  .podium-caption { color:#ffe9a6; font-size:12px; font-weight:900; letter-spacing:2px; margin-bottom:8px; text-shadow:0 0 9px #ffbf36; }
+  .podium-stage { display:flex; align-items:flex-end; justify-content:center; gap:6px; height:145px; position:relative; z-index:2; }
+  .podium-person { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; opacity:0; transform:translateY(18px) scale(.94); transition:opacity .45s ease,transform .45s ease; }
+  .podium-person.revealed { opacity:1; transform:translateY(0) scale(1); }
+  .podium-person .podium-medal { font-size:25px; line-height:1.1; filter:drop-shadow(0 0 7px currentColor); }
+  .podium-person .podium-rank { font-size:11px; font-weight:900; margin:3px 0 2px; }
+  .podium-person .podium-name { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:15px; font-weight:1000; }
+  .podium-person .podium-score { font-size:10px; font-weight:800; margin:2px 0 5px; white-space:nowrap; }
+  .podium-person .podium-base { width:100%; border-radius:7px 7px 0 0; display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:1000; color:#132033; box-shadow:inset 0 2px 5px rgba(255,255,255,.65),0 0 12px currentColor; }
+  .podium-second { color:#e8efff; }
+  .podium-second .podium-base { height:48px; background:linear-gradient(135deg,#f7fbff,#9eafc5 52%,#e7edf5); }
+  .podium-first { color:#ffe58a; }
+  .podium-first .podium-medal { font-size:34px; }
+  .podium-first .podium-name { font-size:19px; }
+  .podium-first .podium-base { height:70px; background:linear-gradient(135deg,#fff5b0,#e5aa19 48%,#fff0a0); }
+  .podium-third { color:#f0b58e; }
+  .podium-third .podium-base { height:36px; background:linear-gradient(135deg,#ffd2ad,#a95d32 55%,#e9a274); }
+  .podium-confetti { position:absolute; inset:0; overflow:hidden; pointer-events:none; opacity:0; }
+  .result-podium.champion .podium-confetti { opacity:1; }
+  .podium-confetti::before { content:""; position:absolute; inset:-30% -10%; background-image:radial-gradient(circle,#ffe36e 0 2px,transparent 3px),radial-gradient(circle,#fff 0 2px,transparent 3px),radial-gradient(circle,#ff8c42 0 2px,transparent 3px),radial-gradient(circle,#79d8ff 0 2px,transparent 3px); background-size:37px 43px,53px 47px,61px 55px,47px 59px; animation:confettiFall 2.8s linear infinite; }
+  @keyframes confettiFall { from { transform:translateY(-8%); } to { transform:translateY(35%); } }
+  .result-podium.champion { animation:championGlow 1.2s ease-in-out infinite alternate; }
+  @keyframes championGlow { from { box-shadow:inset 0 0 24px rgba(255,211,91,.13),0 0 16px rgba(255,193,55,.25); } to { box-shadow:inset 0 0 34px rgba(255,211,91,.3),0 0 32px rgba(255,193,55,.65); } }
+  .result-podium-message { position:relative; z-index:2; color:#fff0b3; font-size:11px; font-weight:900; margin-top:3px; text-shadow:0 0 8px #ffbd37; }
+  @media (pointer:coarse) { .result-podium { min-height:190px; padding:8px 4px 6px; } .podium-stage { height:132px; gap:4px; } .podium-person .podium-medal { font-size:22px; } .podium-first .podium-medal { font-size:30px; } .podium-person .podium-name { font-size:13px; } .podium-first .podium-name { font-size:16px; } .podium-person .podium-score { font-size:9px; } }
+
+  .standalone-ranking-card { display:flex; flex-direction:column; flex:0 1 auto; }
+  .standalone-ranking .ranking-row { min-height:19px; padding:1px 4px; font-size:12px; }
+  .standalone-ranking .ranking-row.podium-1,.standalone-ranking .ranking-row.podium-2,.standalone-ranking .ranking-row.podium-3 { min-height:20px; font-size:12px; }
+  .result-podium { display:none; position:relative; width:100%; min-height:205px; margin-top:5px; padding:10px 5px 8px; overflow:hidden; border:2px solid #d7b75b; border-radius:13px; background:radial-gradient(ellipse at 50% 0%,rgba(255,219,105,.28),rgba(8,22,42,.97) 68%); box-shadow:inset 0 0 24px rgba(255,211,91,.13),0 0 20px rgba(255,193,55,.22); }
+  .result-podium.show { display:block; animation:podiumArrive .65s ease-out both; }
+  .result-podium.champion .podium-confetti { opacity:1; }
+  .result-podium.champion { animation:championGlow 1.2s ease-in-out infinite alternate; }
+  .result-podium-message { position:relative; z-index:2; color:#fff0b3; font-size:11px; font-weight:900; margin-top:3px; text-shadow:0 0 8px #ffbd37; }
+  @media (pointer:coarse) { .result-podium { min-height:180px; padding:7px 4px 5px; } .result-podium .podium-stage { height:125px; } }
+
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <!-- 図形情報板（スコア・速度・JCT案内） -->
+  <div id="led-board">
+    <div class="led-header">
+      <div><span class="c1-badge">C1</span>名古屋高速パトロールDX v34</div>
+      <div style="font-size:11px; color:#aaa;">時計回り（右回り）</div>
+    </div>
+    <div class="led-stats">
+      <span>SCORE: <span id="score-disp">0</span></span>
+      <span>周回: <span id="lap-disp">0</span>周</span>
+      <span>SPEED: <span id="speed-disp">53</span> km/h</span><span id="phase-disp">朝</span>
+    </div>
+    <div id="led-main">
+      <div id="led-text">
+        通常区間（3車線巡回中）<br>
+        混雑区間・車間距離に注意！
+      </div>
+      <canvas id="mini-map" width="56" height="56"></canvas>
+    </div>
+  </div>
+
+  <!-- メインゲーム画面 -->
+  <div id="canvas-wrap">
+    <div id="sign-banner">
+      <div><span id="sign-code">C01</span><span id="sign-title">東新町 出口</span></div>
+      <div id="sign-sub">【中央車線】通過でボーナス +500！</div>
+    </div>
+    <canvas id="game-canvas" width="360" height="520"></canvas>
+
+    <!-- タイトル画面 -->
+    <div id="title-screen" class="overlay title-overlay">
+      <div class="board-box">
+        <div class="title-brand" style="color:#00ff66; font-size:12px; margin-bottom:4px;">NAGOYA EXPRESSWAY PATROL DX v34</div>
+        <div class="title-name" style="color:#ffcc00; font-size:20px; font-weight:bold; text-shadow:0 0 8px #ff9900;">
+          名古屋高速パトロールDX v34
+        </div>
+        <div class="title-copy" style="color:#ddd; font-size:11px; margin-top:7px; line-height:1.4;">
+          ● 名古屋高速をパトロールして、安全を守りながら高得点をめざそう！<br>
+          ● タイヤ・脚立・段ボール・木材や事故現場を見つけたら、ぶつかって回収しよう！光っているものが目印だよ。<br>
+          ● 回収すると点数アップ！段ボール1,000点／タイヤ・木材2,000点／脚立3,000点／事故現場6,000点。<br>
+          ● ほかの車にぶつかるとゲームオーバー。道路のかべに3回ぶつかっても終了だよ。<br>
+          ● PCは「←」「→」で左右に移動、「Space」でブレーキ。スマホは下のボタンで操作（ブレーキは長おし）。<br>
+          ● 車がウインカーを出して、となりの車線にうつることがあるよ。前や横の車に気をつけよう！<br>
+          ● 昼からスタート。夜はライトがつき、朝や夕方は車が多くなるよ。<br>
+          ● 走る順番：東片端→東新町→丸田町→鶴舞南→東別院→山王→新洲崎→錦橋→名駅→明道町→丸の内→東片端
+        </div>
+      </div>
+      <div class="title-actions">
+        <button class="start-btn" id="btn-start">🚨 パトロール出動（ENTER）</button>
+        <button class="start-btn" id="btn-open-ranking" style="background:#174b78;border-color:#9bdcff;">🏆 ランキングを見る</button>
+      </div>
+    </div>
+
+    <!-- タイトル画面から開くランキング閲覧専用画面 -->
+    <div id="standalone-ranking" class="overlay standalone-ranking" style="display:none;">
+      <div class="standalone-ranking-card">
+        <div class="result-kicker">NAGOYA EXPRESSWAY PATROL DX</div>
+        <div class="standalone-ranking-title">🏆 巡回ランキング TOP20</div>
+        <div id="standalone-ranking-status" class="ranking-status" aria-live="polite" style="display:none;"></div>
+        <div id="standalone-ranking-list" class="ranking-list">ランキングを集計しています…</div>
+        <div id="standalone-admin-hint" aria-label="管理者コマンド受付中" title="管理者コマンド受付中" style="color:#ffd45a;font-size:18px;font-weight:900;line-height:1;margin-top:5px;text-align:center;">★</div>
+      </div>
+      <button class="start-btn" id="btn-ranking-back">タイトルへ戻る</button>
+    </div>
+
+    <!-- リザルト画面 -->
+    <div id="result-screen" class="overlay result-overlay" style="display:none;">
+      <div class="result-card">
+        <div class="result-kicker">NAGOYA EXPRESSWAY PATROL DX</div>
+        <div class="result-title">🏁 PATROL RESULT</div>
+        <div id="result-reason" class="result-reason">巡回終了</div>
+        <div class="score-panel">
+          <div class="score-label">今回の獲得 SCORE</div>
+          <div class="score-value"><span id="final-score">0</span><small>SCORE</small></div>
+        </div>
+        <div class="result-stats">
+          <div><small>周回数</small><strong><span id="final-laps">0</span> 周</strong></div>
+          <div><small>通過地点</small><strong><span id="final-passed">0</span> ヶ所</strong></div>
+        </div>
+        <div id="name-entry-panel" class="name-entry-panel">
+          <div class="name-entry-heading">★ TOP 20 ENTRY! ★</div>
+          <div style="font-size:12px;color:#fff;">20位以内にランクイン！3文字の名前を登録してください</div>
+          <div id="name-entry-time" class="name-entry-time">40</div>
+          <div class="name-entry-input-row">
+            <div class="arcade-slots" id="arcade-slots">
+              <div class="arcade-slot active" data-slot="0">-</div>
+              <div class="arcade-slot" data-slot="1">-</div>
+              <div class="arcade-slot" data-slot="2">-</div>
+            </div>
+            <input id="name-mobile-input" class="name-mobile-input" type="text" maxlength="3" inputmode="text" lang="en" autocapitalize="characters" autocomplete="off" spellcheck="false" pattern="[A-Za-z0-9!?+*/#@._-]{3}" aria-label="ランキング登録名3文字" placeholder="ABC">
+            <button type="button" id="name-confirm" class="name-entry-confirm" disabled aria-label="確定してランキング登録">↲</button>
+          </div>
+          <div class="name-entry-hint" id="name-entry-hint">← →：入力位置を移動　／　Space：文字を変更　／　Enter：登録</div>
+          <div class="name-entry-nav">
+            <button type="button" id="name-prev">◀ 前の項目へ</button>
+            <button type="button" id="name-next">次の項目へ ▶</button>
+          </div>
+        </div>
+        <div class="ranking-heading" id="ranking-heading">★ 巡回ランキング TOP20 ★</div>
+        <div id="ranking-list" class="ranking-list">ランキングを集計しています…</div>
+        <div id="result-podium" class="result-podium" aria-live="polite">
+          <div class="podium-confetti"></div>
+          <div class="podium-caption">🏆 HALL OF FAME · TOP 3 🏆</div>
+          <div class="podium-stage">
+            <div class="podium-person podium-second" id="podium-second"><div class="podium-medal">🥈</div><div class="podium-rank">2ND PLACE</div><div class="podium-name" id="podium-second-name">---</div><div class="podium-score" id="podium-second-score">SCORE 0</div><div class="podium-base">2</div></div>
+            <div class="podium-person podium-first" id="podium-first"><div class="podium-medal">👑</div><div class="podium-rank">1ST PLACE</div><div class="podium-name" id="podium-first-name">---</div><div class="podium-score" id="podium-first-score">SCORE 0</div><div class="podium-base">1</div></div>
+            <div class="podium-person podium-third" id="podium-third"><div class="podium-medal">🥉</div><div class="podium-rank">3RD PLACE</div><div class="podium-name" id="podium-third-name">---</div><div class="podium-score" id="podium-third-score">SCORE 0</div><div class="podium-base">3</div></div>
+          </div>
+          <div id="result-podium-message" class="result-podium-message">歴代トップランカーを表彰！</div>
+        </div>
+        <div id="ranking-status" class="ranking-status" style="display:none;"></div>
+        <div id="my-rank-reveal" class="my-rank-reveal" aria-live="polite"><div class="my-rank-caption">YOUR RESULT</div><div>今回のあなたの順位は…</div><div class="my-rank-number" id="my-rank-number">--位</div><div class="my-rank-name" id="my-rank-name">---</div><div id="my-rank-score" style="color:#ffe9a3;font-weight:900;"></div></div>
+        <div id="admin-ready-hint" style="display:none;color:#ffd45a;font-size:18px;font-weight:900;line-height:1;margin-top:5px;text-align:center;" aria-label="管理者コマンド受付中" title="管理者コマンド受付中">★</div>
+      </div>
+      <div class="result-prompt blink">お疲れさまでした！</div>
+      <button class="start-btn" id="btn-retry">タイトルへ戻る</button>
+    </div>
+    <div id="admin-panel" class="admin-panel" aria-hidden="true">
+      <div class="admin-card">
+        <div class="admin-title">★ ADMINISTRATOR ★</div>
+        <div style="font-size:13px;color:#fff;">ランキング管理メニュー</div>
+        <div class="admin-warning">保存されている全日付のランキング記録を消去します。<br>この操作は取り消せません。</div>
+        <div class="admin-actions">
+          <button type="button" id="admin-cancel">キャンセル</button>
+          <button type="button" id="admin-clear-ranking">全ランキング消去</button>
+        </div>
+        <div id="admin-status" class="admin-status" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3ボタン操作パネル -->
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-left">◀ 左移動</button>
+    <button class="ctrl-btn brake-btn" id="btn-brake">▼ ブレーキ</button>
+    <button class="ctrl-btn" id="btn-right">右移動 ▶</button>
+  </div>
+</div>
+<script>
+const C1_SPOTS = [
+  {code:"JCT",name:"東片端 JCT",type:"車線合流",targetLane:1,hint:"1号楠線との分岐・合流に注意。安全な車間距離を確保！",angle:-Math.PI/2},
+  {code:"C01",name:"東新町 出口",type:"出口案内",targetLane:1,hint:"東新町出口の案内を確認し、周囲の車両に注意！",angle:-Math.PI*.39},
+  {code:"IN",name:"東新町 入口",type:"入口合流",targetLane:1,hint:"東新町入口からの合流車両に注意！",angle:-Math.PI*.28},
+  {code:"JCT",name:"丸田町 JCT",type:"車線合流",targetLane:1,hint:"2号東山線との分岐・合流に注意！",angle:-Math.PI*.12},
+  {code:"JCT",name:"鶴舞南 JCT",type:"車線合流",targetLane:2,hint:"3号大高線との分岐・合流に注意！",angle:Math.PI*.08},
+  {code:"C03",name:"東別院 出口",type:"出口案内",targetLane:1,hint:"東別院出口の案内を確認してください",angle:Math.PI*.22},
+  {code:"IN",name:"東別院 入口",type:"入口合流",targetLane:1,hint:"東別院入口からの合流車両に注意！",angle:Math.PI*.32},
+  {code:"JCT",name:"山王 JCT",type:"車線合流",targetLane:2,hint:"4号東海線との分岐・合流に注意！",angle:Math.PI*.43},
+  {code:"JCT",name:"新洲崎 JCT",type:"急カーブ・車線合流",targetLane:2,hint:"5号万場線・2号東山線方面との分岐に注意！",angle:Math.PI*.56,sharpCurve:true},
+  {code:"C05",name:"錦橋 出口",type:"出口案内",targetLane:1,hint:"錦橋出口の案内を確認し、右側車線の流れに注意！",angle:Math.PI*.68},
+  {code:"IN",name:"名駅 入口",type:"入口合流",targetLane:1,hint:"名駅入口からの合流車両に注意！",angle:Math.PI*.78},
+  {code:"JCT",name:"明道町 JCT",type:"車線合流",targetLane:2,hint:"6号清須線との分岐・合流に注意！",angle:Math.PI*.88},
+  {code:"C07",name:"丸の内 出口",type:"出口案内",targetLane:1,hint:"丸の内出口の案内を確認してください",angle:Math.PI*.96},
+  {code:"IN",name:"丸の内 入口",type:"入口合流",targetLane:1,hint:"丸の内入口からの合流車両に注意！",angle:-Math.PI*.94}
+];
+const canvas=document.getElementById('game-canvas'),ctx=canvas.getContext('2d');
+const miniCanvas=document.getElementById('mini-map'),mCtx=miniCanvas.getContext('2d');
+let gameState='TITLE',playerLane=1,playerVisualX=180,playerBlinker=null,playerBlinkerTimer=0,isBraking=false;
+let score=0,baseSpeed=3.5,currentSpeed=3.5,roadOffset=0,spotIndex=0,passedCount=0,spotTimer=0,currentSpot=null;
+let lapCount=0,brakeWaveCooldown=0,workZoneCooldown=0,workZone=null;
+let hazards=[],hazardCooldown=0,interchangeSide=1;
+let vehicles=[],floatingTexts=[],animId=null,blinkFrame=0,laneCount=3,roadWidth=270,roadLeft=45,lanePlan=null,laneTransition=null,nextLaneEvent=650;
+let spawnClock=0,lastLaneChangeScore=0;
+let bannerOwner=null,bannerPriority=0,bannerTimer=0;
+let elapsedFrames=0,dayPhaseIndex=0,wallHits=[],wallCooldown=0,wallSparks=[],jamTriggered={};
+const DAY_PHASES=[{name:'朝',sky:'#8eb9d8',road:'#62676b'},{name:'昼',sky:'#b8d8ed',road:'#55595d'},{name:'夕',sky:'#e69b69',road:'#5a5554'},{name:'夜',sky:'#101b36',road:'#3c414b'}];
+// ゲーム開始は昼。以降は夕→夜→朝→昼の順に約80秒ごとに切り替わる。
+function getDayPhase(){dayPhaseIndex=Math.floor(elapsedFrames/4800+1)%4;return DAY_PHASES[dayPhaseIndex];}
+const PLAYER_Y=canvas.height-150;
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function transitionProgress(){return laneTransition?clamp(laneTransition.frame/180,0,1):0;}
+function effectiveLaneCount(){return laneTransition?laneTransition.from+(laneTransition.to-laneTransition.from)*transitionProgress():laneCount;}
+function laneWidth(){return roadWidth/effectiveLaneCount();}
+function widthForLanes(n){return n===3?270:(n===4?300:320);}
+function laneCenter(lane){return roadLeft+(lane+.5)*laneWidth();}
+function nearestLane(x){return clamp(Math.round((x-roadLeft)/laneWidth()-.5),0,laneCount-1);}
+function setBrake(active){if(gameState!=='PLAYING'){isBraking=false;return;}isBraking=active;const b=document.getElementById('btn-brake');b.classList.toggle('brake-active',active);}
+function updateLed(html,mode){
+ const el=document.getElementById('led-text');
+ el.innerHTML=html;
+ el.className=mode==='orange'?'led-orange':mode==='red'?'led-red':mode==='work'?'led-work':'';
+}
+function showRoadNotice(owner,priority,code,title,sub,kind='lane',duration=170){
+ if(bannerTimer>0 && priority<bannerPriority)return;
+ if(bannerTimer>0 && owner!==bannerOwner && priority===bannerPriority && bannerOwner==='work')return;
+ const box=document.getElementById('sign-banner');
+ box.className=kind==='exit'?'exit-sign':kind==='jct'?'jct-sign':kind==='work'?'work-sign':'lane-sign';
+ document.getElementById('sign-code').innerText=code;
+ document.getElementById('sign-title').innerText=title;
+ document.getElementById('sign-sub').innerText=sub;
+ box.style.display='block';bannerOwner=owner;bannerPriority=priority;bannerTimer=duration;
+}
+function hideRoadNotice(owner){if(bannerOwner===owner){document.getElementById('sign-banner').style.display='none';bannerOwner=null;bannerPriority=0;bannerTimer=0;}}
+function tickRoadNotice(){if(bannerTimer>0&&--bannerTimer===0){document.getElementById('sign-banner').style.display='none';bannerOwner=null;bannerPriority=0;}}
+function drawMiniMap(angle,lap=0){const lapColors=['#00ff66','#ff9900','#35c8ff','#a56bff','#ff69b4'];const roadColor=lapColors[Math.max(0,Math.floor(Number(lap)||0))%lapColors.length];mCtx.fillStyle='#000';mCtx.fillRect(0,0,56,56);mCtx.strokeStyle='#005522';mCtx.lineWidth=2;mCtx.beginPath();mCtx.arc(28,28,18,0,Math.PI*2);mCtx.stroke();mCtx.strokeStyle=roadColor;mCtx.lineWidth=3;mCtx.beginPath();mCtx.arc(28,28,14,0,Math.PI*2);mCtx.stroke();mCtx.fillStyle='#ffcc00';mCtx.beginPath();mCtx.arc(28+Math.cos(angle)*14,28+Math.sin(angle)*14,4,0,Math.PI*2);mCtx.fill();}
+
+// 車線変更・合流の安全間隔チェック（すり抜け防止）
+function safeGap(lane,y,exclude=null,need=84){
+ if(gameState==='PLAYING'&&lane===playerLane&&Math.abs(y-PLAYER_Y)<need)return false;
+ if(workZone&&lane===workZone.lane&&y>=workZone.y-need&&y<=workZone.y+workZone.length+need)return false;
+ if(hazards.some(h=>h.lane===lane&&Math.abs(h.y-y)<Math.max(need,140)))return false;
+ return !vehicles.some(v=>v!==exclude&&(v.lane===lane||v.targetLane===lane||v.pendingLane===lane)&&Math.abs(v.y-y)<need);
+}
+
+// 特定車線の前方クリア度（yより上側＝進行方向）を計測
+function forwardClearance(lane,y,exclude=null){
+ let minGap=999;
+ if(gameState==='PLAYING'&&lane===playerLane&&PLAYER_Y<y){
+  minGap=Math.min(minGap,y-PLAYER_Y);
+ }
+ if(workZone&&lane===workZone.lane){
+  const rear=workZone.y+workZone.length;
+  if(rear<y)minGap=Math.min(minGap,y-rear);
+  else if(y>=workZone.y-20)minGap=0;
+ }
+ for(const h of hazards){
+  if(h.lane===lane&&h.y<y){
+   minGap=Math.min(minGap,y-h.y);
+  }
+ }
+ for(const v of vehicles){
+  if(v!==exclude&&(v.lane===lane||v.targetLane===lane)&&v.y<y){
+   minGap=Math.min(minGap,y-v.y);
+  }
+ }
+ return minGap;
+}
+
+function registerWallImpact(dir){
+ if(gameState!=='PLAYING'||wallCooldown>0)return;
+ const now=elapsedFrames;wallHits=wallHits.filter(t=>now-t<=300);wallHits.push(now);wallCooldown=18;
+ const x=dir<0?roadLeft+7:roadLeft+roadWidth-7;wallSparks.push({x,y:PLAYER_Y,life:24});
+ floatingTexts.push({text:'側壁接触！',x:180,y:PLAYER_Y-55,life:35,color:'#ff9a32'});
+ if(wallHits.length>=3){gameOver('側壁に短時間で3回接触！巡回終了');return;}
+ updateLed(`【側壁接触 ${wallHits.length}/3】<br>ハンドル操作に注意！`,'red');
+}
+function moveLane(dir){if(gameState!=='PLAYING')return;const next=clamp(playerLane+dir,0,laneCount-1);if(next===playerLane){registerWallImpact(dir);return;}playerLane=next;playerBlinker=dir<0?'left':'right';playerBlinkerTimer=38;updateLed('車線変更中！<br>周囲の車両との接触に注意','orange');}
+// ランキング画面限定の管理者コマンド：← → ← → Space
+const ADMIN_SEQUENCE=['ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','Space'];
+let adminSequenceIndex=0,adminSequenceAt=0;
+function isRankingScreen(){const resultVisible=gameState==='RESULT'&&!nameEntryActive&&!rankingPresentationActive&&document.getElementById('result-screen').style.display!=='none';const browseVisible=document.getElementById('standalone-ranking').style.display!=='none';return resultVisible||browseVisible;}
+function feedAdminCommand(token){
+ if(!isRankingScreen()){adminSequenceIndex=0;return;}
+ const now=Date.now();
+ if(now-adminSequenceAt>6000)adminSequenceIndex=0;
+ adminSequenceAt=now;
+ if(token===ADMIN_SEQUENCE[adminSequenceIndex])adminSequenceIndex++;
+ else adminSequenceIndex=(token===ADMIN_SEQUENCE[0]?1:0);
+ if(adminSequenceIndex===ADMIN_SEQUENCE.length){adminSequenceIndex=0;openAdminPanel();}
+}
+function openAdminPanel(){adminSequenceIndex=0;const panel=document.getElementById('admin-panel');panel.style.display='flex';panel.setAttribute('aria-hidden','false');document.getElementById('admin-status').textContent='';}
+function closeAdminPanel(){const panel=document.getElementById('admin-panel');panel.style.display='none';panel.setAttribute('aria-hidden','true');}
+document.getElementById('admin-cancel').addEventListener('click',closeAdminPanel);
+document.getElementById('admin-clear-ranking').addEventListener('click',()=>{
+ if(!window.confirm('本当に全日付のランキング記録を消去しますか？この操作は取り消せません。'))return;
+ let removed=0;
+ try{for(let i=localStorage.length-1;i>=0;i--){const key=localStorage.key(i);if(key&&key.startsWith('nagoya_patrol_rank_')){localStorage.removeItem(key);removed++;}}}catch(err){document.getElementById('admin-status').textContent='消去できませんでした。保存領域を確認してください。';return;}
+ renderRanking([]);document.getElementById('standalone-ranking-list').innerHTML=document.getElementById('ranking-list').innerHTML;
+ document.getElementById('admin-status').textContent='全ランキングを初期化しました（'+removed+'件）。';
+ document.getElementById('ranking-heading').textContent='★ 巡回ランキング TOP20 ★';
+});
+// スマホはランキングカードの左・右・左・右・中央を順番にタップして同じコマンドを入力
+// スマホ：ランキング結果画面のどこでも、左→右→左→右→中央の順にタップ。
+const resultScreen=document.getElementById('result-screen');
+resultScreen.addEventListener('pointerdown',e=>{
+ if(!isRankingScreen()||e.target.closest('button,input,.admin-panel'))return;
+ const rect=resultScreen.getBoundingClientRect(),x=e.clientX-rect.left;
+ const zone=x<rect.width*.34?'ArrowLeft':x>rect.width*.66?'ArrowRight':'Space';
+ feedAdminCommand(zone);
+});
+const standaloneRankingScreen=document.getElementById('standalone-ranking');
+standaloneRankingScreen.addEventListener('pointerdown',e=>{
+ if(!isRankingScreen()||e.target.closest('button,input,.admin-panel'))return;
+ const rect=standaloneRankingScreen.getBoundingClientRect(),x=e.clientX-rect.left;
+ const zone=x<rect.width*.34?'ArrowLeft':x>rect.width*.66?'ArrowRight':'Space';
+ feedAdminCommand(zone);
+});
+window.addEventListener('keydown',e=>{
+ if(isRankingScreen()&&!e.repeat&&!e.target.closest('input,.admin-panel')){const token=e.code==='Space'?'Space':e.key;if(['ArrowLeft','ArrowRight','Space'].includes(token)){e.preventDefault();feedAdminCommand(token);}}
+ if(nameEntryActive){
+  if(document.activeElement===document.getElementById('name-mobile-input'))return;
+  if(e.key==='ArrowLeft'){e.preventDefault();advanceNameSlot(-1);return;}
+  if(e.key==='ArrowRight'){e.preventDefault();advanceNameSlot(1);return;}
+  if(e.code==='Space'){e.preventDefault();cycleNameCharacter(1);return;}
+  if(e.key==='Enter'){e.preventDefault();confirmNameEntry();return;}
+  return;
+ }
+ if(e.key==='ArrowLeft'){e.preventDefault();moveLane(-1);}if(e.key==='ArrowRight'){e.preventDefault();moveLane(1);}if(e.code==='Space'){e.preventDefault();setBrake(true);}if(e.key==='Enter'){if(document.getElementById('standalone-ranking').style.display!=='none')return;if(gameState==='TITLE')startGame();else if(gameState==='RESULT')backToTitle();}
+});
+window.addEventListener('keyup',e=>{if(e.code==='Space')setBrake(false);});
+// スマホのランキング画面では、画面下の3つの操作ボタンを隠しコマンド入力に割り当てる。
+// 走行中は従来どおり車線変更・ブレーキとして動作する。
+const leftBtn=document.getElementById('btn-left');
+const rightBtn=document.getElementById('btn-right');
+const brakeBtn=document.getElementById('btn-brake');
+leftBtn.addEventListener('pointerdown',e=>{e.preventDefault();if(isRankingScreen()){feedAdminCommand('ArrowLeft');return;}moveLane(-1);});
+rightBtn.addEventListener('pointerdown',e=>{e.preventDefault();if(isRankingScreen()){feedAdminCommand('ArrowRight');return;}moveLane(1);});
+brakeBtn.addEventListener('pointerdown',e=>{e.preventDefault();if(isRankingScreen()){feedAdminCommand('Space');return;}setBrake(true);});
+brakeBtn.addEventListener('pointerup',e=>{e.preventDefault();setBrake(false);});
+brakeBtn.addEventListener('pointercancel',()=>setBrake(false));
+brakeBtn.addEventListener('pointerleave',()=>setBrake(false));
+document.getElementById('btn-start').addEventListener('click',startGame);document.getElementById('btn-retry').addEventListener('click',backToTitle);document.getElementById('btn-open-ranking').addEventListener('click',openStandaloneRanking);document.getElementById('btn-ranking-back').addEventListener('click',closeStandaloneRanking);
+document.getElementById('name-prev').addEventListener('click',()=>{if(window.matchMedia&&window.matchMedia('(pointer:coarse)').matches)moveMobileCaret(-1);else advanceNameSlot(-1);});
+document.getElementById('name-next').addEventListener('click',()=>{if(window.matchMedia&&window.matchMedia('(pointer:coarse)').matches)moveMobileCaret(1);else advanceNameSlot(1);});
+document.getElementById('name-confirm').addEventListener('click',confirmNameEntry);
+document.getElementById('name-mobile-input').addEventListener('input',e=>{const cleaned=e.target.value.toUpperCase().replace(/[^A-Z0-9!?+*\/#@._-]/g,'').slice(0,3);if(e.target.value!==cleaned)e.target.value=cleaned;document.getElementById('name-confirm').disabled=cleaned.length!==3;});
+document.getElementById('name-mobile-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();confirmNameEntry();}});
+
+function startGame(){if(nameEntryTimer){clearInterval(nameEntryTimer);nameEntryTimer=null;}nameEntryActive=false;if(animId)cancelAnimationFrame(animId);document.getElementById('title-screen').style.display='none';document.getElementById('result-screen').style.display='none';document.getElementById('sign-banner').style.display='none';gameState='PLAYING';laneCount=3;roadWidth=widthForLanes(3);roadLeft=(canvas.width-roadWidth)/2;playerLane=1;playerVisualX=laneCenter(1);playerBlinker=null;playerBlinkerTimer=0;isBraking=false;score=0;baseSpeed=3.5;currentSpeed=3.5;roadOffset=0;spotIndex=0;passedCount=0;lapCount=0;spotTimer=0;currentSpot=null;vehicles=[];hazards=[];hazardCooldown=0;interchangeSide=1;floatingTexts=[];lanePlan=null;laneTransition=null;nextLaneSide='right';nextLaneEvent=650;spawnClock=0;lastLaneChangeScore=0;brakeWaveCooldown=1050;workZoneCooldown=2300;workZone=null;bannerOwner=null;bannerPriority=0;bannerTimer=0;elapsedFrames=0;dayPhaseIndex=0;wallHits=[];wallCooldown=0;wallSparks=[];jamTriggered={};jamQueue=null;document.getElementById('sign-banner').className='';document.getElementById('lap-disp').innerText='0';updateLed('通常区間（3車線・交通量少なめ）<br>制限速度60 km/hを守って巡回中','normal');loop();}
+let nameEntryActive=false,nameEntryTimer=null,nameEntryDeadline=0,nameEntrySeconds=40,nameEntrySlots=['','',''],nameEntrySlot=0,nameEntryCharIndex=0,pendingRankList=[],pendingRankIndex=-1,pendingRankScore=0,rankingPresentationActive=false;
+const NAME_CHARSET='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!?+-*/#@._';
+// 日付別ランキングを廃止し、削除されるまで残る累積ランキングを使用。
+const RANKING_STORAGE_KEY='nagoya_patrol_rank_all';
+function rankingStorageKey(){return RANKING_STORAGE_KEY;}
+function normalizeRankingRows(raw){return (Array.isArray(raw)?raw:[]).map(v=>typeof v==='number'?{name:'---',score:v}:{name:String(v.name||'---').slice(0,3),score:Number(v.score)||0}).filter(v=>Number.isFinite(v.score)&&v.score>=0);}
+function readRanking(){
+ let raw=null;
+ try{
+  const saved=localStorage.getItem(RANKING_STORAGE_KEY);
+  if(saved!==null){raw=JSON.parse(saved);}
+  else{
+   // V26以前の日付別データがあれば初回だけ取り込み、既存記録を引き継ぐ。
+   const legacy=[];
+   for(let i=0;i<localStorage.length;i++){
+    const key=localStorage.key(i);
+    if(key&&key.startsWith('nagoya_patrol_rank_')&&key!==RANKING_STORAGE_KEY){
+     try{legacy.push(...normalizeRankingRows(JSON.parse(localStorage.getItem(key)||'[]')));}catch(e){}
+    }
+   }
+   raw=legacy.sort((a,b)=>b.score-a.score).slice(0,20);
+   if(legacy.length)localStorage.setItem(RANKING_STORAGE_KEY,JSON.stringify(raw));
+  }
+ }catch(e){raw=[];}
+ return normalizeRankingRows(raw).sort((a,b)=>b.score-a.score).slice(0,20);
+}
+function renderRanking(list,playerIndex=-1){let html='';for(let i=0;i<20;i++){const row=list[i]||{name:'---',score:0};const mine=i===playerIndex;const safeName=String(row.name||'---').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));const value=Math.max(0,Number(row.score)||0);const podium=i<3?' podium-rank podium-'+(i+1):'';html+=`<div class="ranking-row${mine?' is-player':''}${podium}" data-rank-index="${i}"><span class="rank-name">${i+1}位　${safeName}${mine?'　◀ YOU':''}</span><span>SCORE ${value.toLocaleString('ja-JP')}</span></div>`;}document.getElementById('ranking-list').innerHTML=html;document.getElementById('standalone-ranking-list').innerHTML=html;}
+function prepareRankingEntry(newScore){const list=readRanking();const rank=list.findIndex(row=>newScore>row.score);const index=rank<0?list.length:rank;pendingRankList=list;pendingRankIndex=index;pendingRankScore=newScore;if(index<20){showNameEntry();}else{document.getElementById('name-entry-panel').style.display='none';document.getElementById('ranking-heading').style.display='block';document.getElementById('ranking-list').style.display='block';setTimeout(()=>playRankingPresentation(list,-1),120);}}
+function showNameEntry(){nameEntryActive=true;nameEntrySlots=['','',''];nameEntrySlot=0;nameEntryCharIndex=0;nameEntrySeconds=40;nameEntryDeadline=Date.now()+40000;const panel=document.getElementById('name-entry-panel');panel.style.display='block';document.getElementById('ranking-heading').style.display='none';document.getElementById('ranking-list').style.display='none';document.querySelector('.result-prompt').style.display='none';document.getElementById('btn-retry').style.display='none';document.getElementById('name-mobile-input').value='';document.getElementById('name-confirm').disabled=true;const isTouch=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;document.getElementById('name-entry-hint').innerText=isTouch?'英字・数字・記号を3文字入力してください':'← →：入力位置を移動　／　Space：文字を変更　／　Enter：登録';renderNameSlots();updateNameTimer();if(nameEntryTimer)clearInterval(nameEntryTimer);nameEntryTimer=setInterval(updateNameTimer,100);if(window.matchMedia&&window.matchMedia('(pointer:coarse)').matches){setTimeout(()=>{const input=document.getElementById('name-mobile-input');input.focus();input.scrollIntoView({block:'center',behavior:'smooth'});},250);}}
+function updateNameTimer(){const remain=Math.max(0,(nameEntryDeadline-Date.now())/1000);const seconds=Math.ceil(remain);const el=document.getElementById('name-entry-time');el.textContent='残り '+String(seconds).padStart(2,'0')+' 秒';el.classList.toggle('urgent',remain<10);if(remain<=0){finishNameEntry(getPartialName());}}
+function renderNameSlots(){document.querySelectorAll('.arcade-slot').forEach((el,i)=>{el.textContent=nameEntrySlots[i]||'-';el.classList.toggle('active',i===nameEntrySlot);});const isTouch=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;document.getElementById('name-confirm').disabled=isTouch?document.getElementById('name-mobile-input').value.length!==3:nameEntrySlots.every(ch=>!!ch);}
+function cycleNameCharacter(dir){if(!nameEntryActive)return;if(!nameEntrySlots[nameEntrySlot])nameEntryCharIndex=dir<0?0:NAME_CHARSET.length-1;nameEntryCharIndex=(nameEntryCharIndex+dir+NAME_CHARSET.length)%NAME_CHARSET.length;nameEntrySlots[nameEntrySlot]=NAME_CHARSET[nameEntryCharIndex];renderNameSlots();}
+function advanceNameSlot(dir){if(!nameEntryActive)return;nameEntrySlot=(nameEntrySlot+dir+3)%3;nameEntryCharIndex=Math.max(0,NAME_CHARSET.indexOf(nameEntrySlots[nameEntrySlot]));renderNameSlots();}
+function moveMobileCaret(dir){const input=document.getElementById('name-mobile-input');input.focus();const pos=input.selectionStart||0;const next=Math.max(0,Math.min(3,pos+dir));input.setSelectionRange(next,next);}
+function getPartialName(){const mobile=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;const raw=mobile?document.getElementById('name-mobile-input').value.toUpperCase():nameEntrySlots.join('');const cleaned=raw.replace(/[^A-Z0-9!?+*\/#@._-]/g,'').slice(0,3);return cleaned.padEnd(3,'-');}
+function confirmNameEntry(){if(!nameEntryActive)return;const mobile=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;let name=mobile?document.getElementById('name-mobile-input').value.toUpperCase():nameEntrySlots.join('');name=name.replace(/[^A-Z0-9!?+*\/#@._-]/g,'').slice(0,3);if(name.length!==3)return;finishNameEntry(name);}
+function waitMs(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+// 名前確定時、または40秒経過時にだけTOP20を正式保存する（入力中の仮保存は行わない）。
+function finishNameEntry(name){if(!nameEntryActive)return;nameEntryActive=false;if(nameEntryTimer){clearInterval(nameEntryTimer);nameEntryTimer=null;}const list=pendingRankList.slice();list.splice(pendingRankIndex,0,{name,score:pendingRankScore});const saved=list.slice(0,20);try{localStorage.setItem(rankingStorageKey(),JSON.stringify(saved));}catch(e){}document.getElementById('name-entry-panel').style.display='none';document.getElementById('ranking-heading').style.display='block';document.getElementById('ranking-list').style.display='block';document.getElementById('ranking-status').style.display='block';playRankingPresentation(saved,pendingRankIndex);}
+
+function fillPodium(list){
+ const entries=[{key:'second',index:1},{key:'first',index:0},{key:'third',index:2}];
+ entries.forEach(({key,index})=>{const row=list[index]||{name:'---',score:0};document.getElementById('podium-'+key+'-name').textContent=String(row.name||'---');document.getElementById('podium-'+key+'-score').textContent='SCORE '+(Number(row.score)||0).toLocaleString('ja-JP');});
+}
+async function playRankingPresentation(list,playerIndex){
+ if(rankingPresentationActive)return;rankingPresentationActive=true;
+ const listEl=document.getElementById('ranking-list');
+ const status=document.getElementById('ranking-status');
+ const reveal=document.getElementById('my-rank-reveal');
+ const podium=document.getElementById('result-podium');
+ const message=document.getElementById('result-podium-message');
+ document.getElementById('btn-retry').style.display='none';document.querySelector('.result-prompt').style.display='none';
+ reveal.style.display='none';podium.classList.remove('show','champion');podium.style.display='none';
+ ['second','first','third'].forEach(k=>document.getElementById('podium-'+k).classList.remove('revealed'));
+ status.style.display='block';status.textContent='HIGH SCORE RANKING';renderRanking(list,playerIndex);listEl.style.display='block';listEl.scrollTop=listEl.scrollHeight;
+ await waitMs(550);
+ for(let i=19;i>=0;i--){const row=listEl.querySelector(`[data-rank-index="${i}"]`);if(row){const target=Math.max(0,row.getBoundingClientRect().top-listEl.getBoundingClientRect().top+listEl.scrollTop);listEl.scrollTo({top:target,behavior:'smooth'});status.textContent=`RANKING ${i+1} / 20`;await waitMs(480);}}
+ status.textContent='TOP 3 · AWARD CEREMONY';await waitMs(650);
+ fillPodium(list);listEl.style.display='none';podium.style.display='block';podium.classList.add('show');message.textContent='第3位を発表します！';await waitMs(350);
+ document.getElementById('podium-third').classList.add('revealed');await waitMs(900);message.textContent='続いて、第2位！';document.getElementById('podium-second').classList.add('revealed');await waitMs(1100);
+ message.textContent='そして栄えある第1位は……！';await waitMs(900);document.getElementById('podium-first').classList.add('revealed');podium.classList.add('champion');message.textContent='👑 栄光の第1位！おめでとうございます！ 🎉';status.textContent='🏆 CHAMPION · NO.1 🏆';await waitMs(4200);
+ podium.classList.remove('show','champion');podium.style.display='none';listEl.style.display='block';
+ status.textContent='RANKING COMPLETE';const mine=playerIndex>=0?list[playerIndex]:null;if(mine){document.getElementById('my-rank-number').textContent=(playerIndex+1)+'位';document.getElementById('my-rank-name').textContent=mine.name;document.getElementById('my-rank-score').textContent='SCORE '+mine.score.toLocaleString('ja-JP');reveal.style.display='block';reveal.scrollIntoView({block:'center',behavior:'smooth'});await waitMs(3000);}
+ reveal.style.display='none';status.style.display='none';listEl.scrollTo({top:0,behavior:'smooth'});await waitMs(400);document.querySelector('.result-prompt').style.display='block';document.getElementById('btn-retry').style.display='inline-block';document.getElementById('admin-ready-hint').style.display='block';rankingPresentationActive=false;
+}
+function openStandaloneRanking(){
+ adminSequenceIndex=0;const rows=readRanking();renderRanking(rows);
+ const list=document.getElementById('standalone-ranking-list');list.style.display='block';list.scrollTop=0;
+ document.getElementById('standalone-ranking-status').style.display='none';
+ document.getElementById('title-screen').style.display='none';document.getElementById('result-screen').style.display='none';document.getElementById('standalone-ranking').style.display='flex';
+ // 初期表示は11～20位。上方向へスクロールすると1～10位を確認できる。
+ requestAnimationFrame(()=>{list.scrollTop=list.scrollHeight;});
+}
+function closeStandaloneRanking(){adminSequenceIndex=0;document.getElementById('standalone-ranking-status').style.display='none';document.getElementById('standalone-ranking-list').style.display='block';document.getElementById('standalone-ranking').style.display='none';document.getElementById('title-screen').style.display='flex';}
+function backToTitle(){rankingPresentationActive=false;adminSequenceIndex=0;const podium=document.getElementById('result-podium');if(podium){podium.style.display='none';podium.classList.remove('show','champion');}document.getElementById('my-rank-reveal').style.display='none';document.getElementById('ranking-status').style.display='none';document.getElementById('admin-ready-hint').style.display='none';if(nameEntryTimer){clearInterval(nameEntryTimer);nameEntryTimer=null;}nameEntryActive=false;gameState='TITLE';document.getElementById('result-screen').style.display='none';document.getElementById('standalone-ranking').style.display='none';document.getElementById('title-screen').style.display='flex';}
+function gameOver(reason){rankingPresentationActive=false;gameState='RESULT';document.getElementById('admin-ready-hint').style.display='none';setBrake(false);if(animId)cancelAnimationFrame(animId);document.getElementById('sign-banner').style.display='none';document.getElementById('result-reason').innerText=reason;document.getElementById('final-score').innerText=Math.floor(score).toLocaleString('ja-JP');document.getElementById('final-passed').innerText=passedCount;document.getElementById('final-laps').innerText=lapCount;document.getElementById('name-entry-panel').style.display='none';document.getElementById('ranking-list').style.display='block';document.getElementById('ranking-heading').style.display='block';document.querySelector('.result-prompt').style.display='block';document.getElementById('btn-retry').style.display='inline-block';prepareRankingEntry(Math.floor(score));document.getElementById('result-screen').style.display='flex';}
+function carKind(){const r=Math.random();return r<.36?'compact':r<.60?'sedan':r<.76?'suv':r<.88?'minivan':r<.96?'truck':'bus';}
+
+function spawnVehicle(kind='normal'){
+ const lane=Math.floor(Math.random()*laneCount),isAggressive=kind==='aggressive',y=isAggressive?canvas.height+85:-75;
+ if(!safeGap(lane,y,null,95))return;
+ const vehicleKind=isAggressive?'modified':(kind==='normal'?carKind():kind);
+ const colors=isAggressive?['#141518','#1f2024']:['#d9dce0','#42627d','#52745f','#8a5550','#b3a17d','#eeeeea','#4e535b'];
+ vehicles.push({
+  type:isAggressive?'tailgater':'normal',
+  kind:vehicleKind,
+  lane,
+  targetLane:lane,
+  x:laneCenter(lane),
+  y,
+  cruiseSpeed:isAggressive?6.6:(vehicleKind==='truck'||vehicleKind==='bus'?2.55:2.95+Math.random()*1.15),
+  color:colors[Math.floor(Math.random()*colors.length)],
+  blinker:null,
+  changeCooldown:isAggressive?10:(18+Math.random()*35),
+  passedScored:false,
+  braking:false,
+  pendingLane:undefined,
+  signalTimer:0,
+  brakeWave:0,
+  noSignalMove:false
+ });
+}
+
+// 一般車の車線変更ロジック（序盤からウインカーを早めに出して積極的に車線変更）
+function tryVehicleLaneChange(v){
+ if(v.type==='tailgater')return; // あおり運転車は専用AIで制御
+ if(v.changeCooldown>0||v.lane!==v.targetLane||v.pendingLane!==undefined)return;
+ if(v.y < 10 || v.y > canvas.height - 60)return; // 画面外では変更しない
+
+ const frontGap=forwardClearance(v.lane,v.y,v);
+ const wantsOvertake=frontGap < 185;
+ // 序盤からしっかり車線変更が発生するように確率を設定
+ const chance=wantsOvertake ? 0.065 : 0.022;
+ if(Math.random()>chance)return;
+
+ const options=[v.lane-1,v.lane+1].filter(l=>l>=0&&l<laneCount&&safeGap(l,v.y,v,88));
+ if(!options.length)return;
+
+ // より前方が空いている車線を優先
+ options.sort((a,b)=>forwardClearance(b,v.y,v)-forwardClearance(a,v.y,v));
+ const dest=options[0];
+ if(wantsOvertake && forwardClearance(dest,v.y,v) <= frontGap + 25)return;
+
+ // ゲーム終盤（スコア4200以上）は一部がノーウインカー、残りはウインカーを出して車線変更
+ const isNoSignalEndgame = Math.random() < 0.25; // 約75%がウインカー、約25%がノーウインカー
+ if(isNoSignalEndgame){
+  v.targetLane=dest;
+  v.blinker=null;
+  v.pendingLane=undefined;
+  v.signalTimer=0;
+  v.noSignalMove=true;
+  v.changeCooldown=95+Math.random()*70;
+ } else {
+  // ウインカーを早めに出す（44フレーム先行点滅してから車線移動開始）
+  v.pendingLane=dest;
+  v.signalTimer=44;
+  v.blinker=dest>v.lane?'right':'left';
+  v.noSignalMove=false;
+  v.changeCooldown=95+Math.random()*70;
+ }
+}
+
+// あおり運転の黒い車：他車や自車をすり抜けずに縫うように追い抜き、画面上部へ猛スピードで走り抜ける
+function updateTailgaterAI(v){
+ if(v.changeCooldown>0)v.changeCooldown--;
+ const myClearance = forwardClearance(v.lane,v.y,v);
+
+ // 前方に車両・自車・障害物が近づいたら、空いている車線へ積極的に追い抜き車線変更
+ if(v.lane===v.targetLane && v.pendingLane===undefined && myClearance < 195 && v.changeCooldown<=0){
+  const candidates=[v.lane-1,v.lane+1].filter(l=>l>=0&&l<laneCount&&safeGap(l,v.y,v,84));
+  if(candidates.length){
+   candidates.sort((a,b)=>forwardClearance(b,v.y,v)-forwardClearance(a,v.y,v));
+   const best=candidates[0];
+   if(forwardClearance(best,v.y,v) > myClearance + 20){
+    // ウインカーは出しても出さなくても良い仕様（50%でウインカー点灯、50%でノーウインカー）
+    const useSignal = Math.random() < 0.75; // あおり運転車も約75%はウインカー
+    if(useSignal){
+     v.pendingLane=best;
+     v.signalTimer=16; // 素早くウインカーを出して切り込む
+     v.blinker=best>v.lane?'right':'left';
+    }else{
+     v.targetLane=best;
+     v.blinker=null;
+    }
+    v.changeCooldown=26;
+   }
+  }
+ }
+
+ // 前方が開けているほど猛スピードで画面上部へ加速して走り抜ける
+ if(myClearance > 140){
+  v.cruiseSpeed = 7.4;
+  v.braking = false;
+ } else if(myClearance > 85){
+  v.cruiseSpeed = 5.4;
+ }
+
+ // プレイヤーを抜いて上方へ走り去った際のボーナス
+ if(!v.passedScored && v.y < PLAYER_Y - 75){
+  v.passedScored=true;
+  score+=150;
+  floatingTexts.push({text:'危険車両の追い抜きを回避 +150',x:180,y:230,life:45,color:'#00ff66'});
+ }
+}
+
+let nextLaneSide='right';
+function startLanePlan(target,side){lanePlan={target,side,announceAt:score,changeAt:score+420};const label=target>laneCount?'車線増加':'車線減少';const sideText=side==='left'?'左側':'右側';showRoadNotice('lane',2,'予告',`${label}のお知らせ`,`約300m先 ${sideText}の車線が${target>laneCount?'増えます':'終了します'}`,'lane',210);updateLed('道路標識を確認してください<br>早めの車線変更にご協力ください','orange');}
+function updateLaneSystem(){
+ if(!lanePlan&&!laneTransition&&score>=nextLaneEvent){
+  let target,side=nextLaneSide;
+  if(laneCount===3)target=4;
+  else if(laneCount===4&&Math.random()<.34)target=5;
+  else if(laneCount===5)target=4;
+  else target=3;
+  startLanePlan(target,side);
+  nextLaneSide=nextLaneSide==='left'?'right':'left';
+  nextLaneEvent=score+(target===5?1800:target===4?1500:1300);
+ }
+ if(lanePlan&&score>=lanePlan.changeAt){
+  const closing=lanePlan.target<laneCount?(lanePlan.side==='left'?0:laneCount-1):-1;let ready=true;
+  if(closing>=0){for(const v of vehicles){if(v.lane===closing||v.targetLane===closing){const dest=closing===0?1:laneCount-2;if(safeGap(dest,v.y,v,100)){v.targetLane=dest;v.blinker=dest>v.lane?'right':'left';v.changeCooldown=200;}else{ready=false;v.cruiseSpeed=Math.min(v.cruiseSpeed,2.1);}}}if(playerLane===closing){const dest=closing===0?1:laneCount-2;if(safeGap(dest,PLAYER_Y,null,95)){playerLane=dest;playerBlinker=dest>closing?'right':'left';}else ready=false;}}
+  if(ready){laneTransition={from:laneCount,to:lanePlan.target,frame:0,side:lanePlan.side,anchorLeft:roadLeft,anchorRight:roadLeft+roadWidth};lanePlan=null;}
+ }
+ if(laneTransition){laneTransition.frame++;const t=clamp(laneTransition.frame/180,0,1);const fromW=widthForLanes(laneTransition.from),toW=widthForLanes(laneTransition.to);roadWidth=fromW+(toW-fromW)*t;roadLeft=(canvas.width-roadWidth)/2;if(t>=1){laneCount=laneTransition.to;roadWidth=widthForLanes(laneCount);roadLeft=(canvas.width-roadWidth)/2;for(const v of vehicles){v.lane=clamp(v.lane,0,laneCount-1);v.targetLane=clamp(v.targetLane,0,laneCount-1);}playerLane=clamp(playerLane,0,laneCount-1);laneTransition=null;hideRoadNotice('lane');updateLed(`通常区間（${laneCount}車線）<br>引き続き安全に巡回中`,'normal');}}
+}
+function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+function drawVehicle(v,isPlayer=false){const kind=v.kind;const w=kind==='bus'?34:kind==='truck'?32:kind==='suv'||kind==='minivan'?30:27;const h=kind==='bus'?76:kind==='truck'?68:kind==='minivan'?59:kind==='suv'?55:48;ctx.save();ctx.translate(v.x,v.y);
+ ctx.fillStyle='rgba(0,0,0,.42)';roundRect(ctx,-w/2+2,-h/2+4,w,h,7);ctx.fill();ctx.fillStyle='#101114';ctx.fillRect(-w/2-3,-h/2+10,4,13);ctx.fillRect(w/2-1,-h/2+10,4,13);ctx.fillRect(-w/2-3,h/2-22,4,13);ctx.fillRect(w/2-1,h/2-22,4,13);
+ let body=v.color;if(isPlayer)body='#f5f5f0';ctx.fillStyle=body;roundRect(ctx,-w/2,-h/2,w,h,kind==='truck'||kind==='bus'?4:8);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.55)';ctx.lineWidth=1;ctx.stroke();
+ if(kind==='truck'||kind==='bus'){ctx.fillStyle='#263a49';roundRect(ctx,-w/2+4,-h/2+5,w-8,17,3);ctx.fill();ctx.fillStyle='#d8dadd';ctx.fillRect(-w/2+3,-h/2+25,w-6,h-31);if(kind==='bus'){ctx.fillStyle='#243746';for(let yy=-h/2+28;yy<h/2-8;yy+=11)ctx.fillRect(-w/2+4,yy,w-8,7);}}
+ else {ctx.fillStyle='#203442';roundRect(ctx,-w/2+4,-h/2+8,w-8,kind==='modified'?15:13,4);ctx.fill();ctx.fillStyle='#263d4d';roundRect(ctx,-w/2+5,h/2-22,w-10,12,4);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.3)';ctx.beginPath();ctx.moveTo(0,-h/2+9);ctx.lineTo(0,-h/2+20);ctx.stroke();}
+ ctx.fillStyle='rgba(255,255,255,.18)';roundRect(ctx,-w/2+4,-h/2+23,w-8,kind==='truck'||kind==='bus'?8:9,3);ctx.fill();
+ if(isPlayer){ctx.fillStyle='#f2c326';ctx.fillRect(-w/2+1,-h/2+3,4,h-6);ctx.fillRect(w/2-5,-h/2+3,4,h-6);ctx.fillStyle='#fff';ctx.fillRect(-w/2+1,-2,w-2,13);ctx.fillStyle='#d71920';ctx.font='bold 7px sans-serif';ctx.textAlign='center';ctx.fillText('道路パトロール',0,7);ctx.fillStyle='#ff9d00';ctx.fillRect(-w/2+2,-h/2+2,w-4,4);const flash=Math.floor(blinkFrame/22)%2===0;ctx.fillStyle=flash?'#ffb000':'#fff2a0';roundRect(ctx,-9,-h/2+7,18,5,2);ctx.fill();ctx.shadowColor='#ffb000';ctx.shadowBlur=flash?12:3;ctx.fill();ctx.shadowBlur=0;}
+ if(kind==='modified'){ctx.fillStyle='#090a0c';ctx.fillRect(-w/2+2,h/2-12,w-4,4);ctx.fillStyle='#ffcc00';ctx.fillRect(-w/2+2,-h/2+1,5,3);ctx.fillRect(w/2-7,-h/2+1,5,3);}
+ const passFlash=v.type==='tailgater'&&v.y>PLAYER_Y-100&&Math.floor(blinkFrame/7)%2===0;ctx.fillStyle=passFlash?'#ffffff':(isPlayer?'#fff8c9':'#fff2d0');ctx.shadowColor=passFlash?'#fff7b0':'transparent';ctx.shadowBlur=passFlash?13:0;ctx.fillRect(-w/2+3,-h/2+1,6,3);ctx.fillRect(w/2-9,-h/2+1,6,3);ctx.shadowBlur=0;if(passFlash){ctx.fillStyle='rgba(255,248,190,.20)';ctx.beginPath();ctx.moveTo(-w/2+5,-h/2);ctx.lineTo(-w/2-12,-h/2-58);ctx.lineTo(-w/2+17,-h/2-58);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(w/2-6,-h/2);ctx.lineTo(w/2-17,-h/2-58);ctx.lineTo(w/2+12,-h/2-58);ctx.closePath();ctx.fill();}ctx.fillStyle=v.braking?'#ff1717':'#a51b22';ctx.fillRect(-w/2+3,h/2-5,7,4);ctx.fillRect(w/2-10,h/2-5,7,4);
+ 
+ // ウインカー点滅表示（車線変更完了時に v.blinker が null になり確実に消灯）
+ if(v.blinker&&Math.floor(blinkFrame/7)%2===0){
+  const x=v.blinker==='left'?-w/2-4:w/2-4;
+  // 車体の前後に大きめの橙色ランプ。発光と外側の光輪で遠方からも視認しやすくする。
+  ctx.save();ctx.shadowColor='#ff8c00';ctx.shadowBlur=15;
+  ctx.fillStyle='rgba(255,145,0,.42)';
+  for(const yy of [-h/2+5,h/2-13]){ctx.beginPath();ctx.ellipse(x+3,yy+4,8,9,0,0,Math.PI*2);ctx.fill();}
+  ctx.fillStyle='#ffb000';ctx.strokeStyle='#fff4a8';ctx.lineWidth=1.5;
+  for(const yy of [-h/2+2,h/2-10]){roundRect(ctx,x-1,yy,8,11,3);ctx.fill();ctx.stroke();}
+  ctx.fillStyle='#fff6bf';ctx.shadowBlur=5;
+  for(const yy of [-h/2+4,h/2-8])ctx.fillRect(x+1,yy,4,5);
+  ctx.restore();
+ }
+
+ // 夜間は全車のヘッドライトを点灯し、前方へ控えめな照射光を表示。
+ if(getDayPhase().name!=='昼'){
+  const isDeepNight=getDayPhase().name==='夜';
+  ctx.save();ctx.globalAlpha=isPlayer?(isDeepNight?.28:.17):(isDeepNight?.20:.11);ctx.fillStyle='#fff2b8';
+  for(const side of [-1,1]){
+   const hx=side*(w/2-7),far=isPlayer?(isDeepNight?158:118):(isDeepNight?112:88);
+   ctx.beginPath();ctx.moveTo(hx-2,-h/2+3);
+   ctx.lineTo(hx+(side<0?-13:13),-h/2-far);
+   ctx.lineTo(hx+(side<0?-2:2),-h/2-far);ctx.closePath();ctx.fill();
+  }
+  ctx.globalAlpha=1;ctx.shadowColor='#fff1b0';ctx.shadowBlur=isDeepNight?16:10;ctx.fillStyle='#fff8d7';
+  ctx.fillRect(-w/2+3,-h/2+1,7,4);ctx.fillRect(w/2-10,-h/2+1,7,4);
+  ctx.shadowColor='#ff1717';ctx.shadowBlur=isDeepNight?13:8;ctx.fillStyle='#ff2929';
+  ctx.fillRect(-w/2+3,h/2-6,7,5);ctx.fillRect(w/2-10,h/2-6,7,5);ctx.restore();
+ }
+ ctx.restore();}
+
+function drawRoadV10(){ctx.fillStyle='#28502e';ctx.fillRect(0,0,canvas.width,canvas.height);const left=roadLeft,right=roadLeft+roadWidth;ctx.fillStyle='#55595d';ctx.fillRect(left,0,roadWidth,canvas.height);ctx.fillStyle='#777';ctx.fillRect(left-5,0,5,canvas.height);ctx.fillRect(right,0,5,canvas.height);ctx.fillStyle='#c7c7c7';ctx.fillRect(left-7,0,2,canvas.height);ctx.fillRect(right+5,0,2,canvas.height);ctx.fillStyle='rgba(20,20,20,.35)';for(let gy=-20+roadOffset;gy<canvas.height;gy+=42){ctx.fillRect(left-7,gy,2,18);ctx.fillRect(right+5,gy,2,18);}ctx.fillStyle='#f4b323';for(let y=-36+roadOffset;y<canvas.height;y+=36){ctx.fillRect(left-9,y,3,15);ctx.fillRect(right+6,y,3,15);}ctx.strokeStyle='rgba(255,255,255,.82)';ctx.lineWidth=2;ctx.setLineDash([19,17]);ctx.lineDashOffset=-roadOffset;const drawLines=(count,alpha)=>{ctx.globalAlpha=alpha;for(let i=1;i<count;i++){const x=left+roadWidth/count*i;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}ctx.globalAlpha=1;};if(laneTransition){const t=transitionProgress();drawLines(laneTransition.from,1-t);drawLines(laneTransition.to,t);}else drawLines(laneCount,1);ctx.setLineDash([]);
+ if(lanePlan){ctx.fillStyle='rgba(255,255,255,.18)';const x=lanePlan.side==='left'?left:left+roadWidth-20;for(let y=0;y<canvas.height;y+=24){ctx.fillRect(x,y,20,10);}ctx.strokeStyle='#ffdc58';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(lanePlan.side==='left'?left+20:right-20,0);ctx.lineTo(lanePlan.side==='left'?left+20:right-20,canvas.height);ctx.stroke();}
+ if(laneTransition){ctx.fillStyle='rgba(255,220,80,.15)';ctx.fillRect(left,0,roadWidth,canvas.height);}
+ if(workZone){
+  const x=left+workZone.lane*laneWidth(),w=laneWidth();
+  ctx.save();ctx.beginPath();ctx.rect(x,workZone.y,w,workZone.length);ctx.clip();
+  ctx.fillStyle='rgba(255,120,0,.20)';ctx.fillRect(x,workZone.y,w,workZone.length);
+  ctx.strokeStyle='rgba(255,190,60,.8)';ctx.lineWidth=3;
+  for(let yy=workZone.y-30;yy<workZone.y+workZone.length+40;yy+=22){
+   ctx.beginPath();ctx.moveTo(x+3,yy+20);ctx.lineTo(x+w-3,yy-12);ctx.stroke();
+  }
+  ctx.restore();
+  for(let yy=workZone.y;yy<workZone.y+workZone.length;yy+=25){
+   const cx=x+w/2,cy=yy+12;
+   ctx.fillStyle='#f47721';ctx.beginPath();ctx.moveTo(cx,cy-10);ctx.lineTo(cx-8,cy+8);ctx.lineTo(cx+8,cy+8);ctx.closePath();ctx.fill();
+   ctx.fillStyle='#fff';ctx.fillRect(cx-5,cy+1,10,3);
+   ctx.fillStyle='#333';ctx.fillRect(cx-9,cy+8,18,3);
+  }
+  if(workZone.y>-180&&workZone.y<canvas.height+30){
+   ctx.fillStyle='#fff3b0';ctx.font='bold 13px sans-serif';ctx.textAlign='center';
+   ctx.fillText('工事車線・通行止め',x+w/2,Math.max(16,workZone.y-12));
+   ctx.fillStyle='#fff';ctx.font='bold 11px sans-serif';
+   ctx.fillText('中央側の車線へ',x+w/2,Math.max(30,workZone.y-29));
+  }
+  drawWorkRoadSign();
+ }
+}
+
+
+// 背景は視認性を優先し、丸の内付近の名古屋城を道路外に表示する。
+function drawLocationScenery(){
+ const idx=spotIndex%C1_SPOTS.length;
+ const left=roadLeft, right=roadLeft+roadWidth;
+ // 建物・ランドマークは左右の側壁より外側だけに描画。道路領域には絶対に入れない。
+ ctx.save();
+ ctx.beginPath();ctx.rect(0,0,Math.max(0,left-11),canvas.height);ctx.rect(Math.min(canvas.width,right+11),0,Math.max(0,canvas.width-(right+11)),canvas.height);ctx.clip();
+ if(idx===12 || idx===13){
+  const available=Math.max(0,left-14);
+  if(available>28){
+   const scale=Math.min(.48,available/150);
+   ctx.translate(Math.max(0,left-available+2),canvas.height*.49);
+   ctx.scale(scale,scale);
+   ctx.fillStyle='#eee9dc';ctx.fillRect(18,0,56,21);
+   ctx.beginPath();ctx.moveTo(12,1);ctx.lineTo(46,-17);ctx.lineTo(80,1);ctx.closePath();ctx.fillStyle='#343b3d';ctx.fill();
+   ctx.fillStyle='#f2eee1';ctx.fillRect(25,-20,42,17);
+   ctx.beginPath();ctx.moveTo(20,-20);ctx.lineTo(46,-36);ctx.lineTo(72,-20);ctx.closePath();ctx.fillStyle='#343b3d';ctx.fill();
+   ctx.fillStyle='#f2eee1';ctx.fillRect(34,-39,24,18);
+   ctx.beginPath();ctx.moveTo(29,-39);ctx.lineTo(46,-52);ctx.lineTo(63,-39);ctx.closePath();ctx.fillStyle='#343b3d';ctx.fill();
+   ctx.fillStyle='#c5a94b';ctx.fillRect(44,-62,4,10);
+  }
+ }
+ if(idx===9){
+  const base=canvas.height*.72, maxW=Math.max(0,left-15);
+  if(maxW>20){
+   const scale=Math.min(1,maxW/48);
+   const buildings=[{x:2,w:13,h:105,c:'#526779'},{x:17,w:12,h:145,c:'#657b8c'},{x:31,w:10,h:82,c:'#40586b'}];
+   for(const b of buildings){
+    ctx.fillStyle=b.c;ctx.fillRect(b.x*scale,base-b.h*scale,b.w*scale,b.h*scale);
+    ctx.fillStyle='rgba(238,218,155,.75)';
+    for(let yy=base-b.h*scale+8*scale;yy<base-7*scale;yy+=13*scale)for(let xx=b.x*scale+3*scale;xx<(b.x+b.w)*scale-2*scale;xx+=6*scale)ctx.fillRect(xx,yy,3*scale,4*scale);
+    ctx.fillStyle='#344958';ctx.fillRect((b.x-1)*scale,base-b.h*scale-4*scale,(b.w+2)*scale,4*scale);
+   }
+  }
+ }
+ ctx.restore();
+}
+function drawRoad(){drawRoadV10();drawLocationScenery();}
+
+function drawWorkRoadSign(){
+ if(!workZone)return;
+ const signY=workZone.y+650;
+ if(signY < -70 || signY > canvas.height+20)return;
+ const left=roadLeft,right=roadLeft+roadWidth;
+ // 工事予告看板は工事側の車線側（路肩）に表示
+ const x = workZone.lane === 0 ? Math.max(3, left - 47) : Math.min(canvas.width - 48, right + 5);
+ const laneLabel=workZone.lane===0?'左側車線':'右側車線';
+ ctx.save();
+ ctx.fillStyle='#444';ctx.fillRect(x+17,signY+43,4,30);
+ ctx.fillStyle='#202020';roundRect(ctx,x,signY,42,47,3);ctx.fill();
+ ctx.strokeStyle='#ffcf36';ctx.lineWidth=3;ctx.stroke();
+ ctx.fillStyle='#ffdf48';ctx.font='bold 10px sans-serif';ctx.textAlign='center';
+ ctx.fillText('⚠ この先',x+21,signY+13);
+ ctx.fillStyle='#fff';ctx.font='bold 9px sans-serif';
+ ctx.fillText('道路工事',x+21,signY+25);
+ ctx.fillText(laneLabel+'規制',x+21,signY+37);
+ ctx.restore();
+}
+
+function updateVehicles(){
+ for(let i=vehicles.length-1;i>=0;i--){
+  const v=vehicles[i];
+  if(v.changeCooldown>0)v.changeCooldown--;
+
+  if(v.type==='tailgater'){
+   updateTailgaterAI(v);
+  }else if(!v.locationJam&&v.lane===v.targetLane){
+   tryVehicleLaneChange(v);
+  }
+
+  // 先行ウインカーのカウントダウン後に車線変更を実行
+  if(v.pendingLane!==undefined){
+   v.signalTimer--;
+   if(v.signalTimer<=0){
+    if(safeGap(v.pendingLane,v.y,v,84)){
+     v.targetLane=v.pendingLane;
+     v.pendingLane=undefined;
+    }else{
+     // 隣の車線が埋まった場合は一旦キャンセルしウインカー消灯
+     v.pendingLane=undefined;
+     v.blinker=null;
+     v.changeCooldown=25;
+    }
+   }
+  }
+
+  // 前方の障害物（落下物・事故車・工事規制）の検知と回避（すり抜け防止）
+  let obstacle=null;
+  for(const h of hazards){
+   if(h.lane===v.lane&&h.y<v.y+25&&v.y-h.y<320){
+    if(!obstacle||h.y>obstacle.y)obstacle={y:h.y,kind:'hazard'};
+   }
+  }
+  if(workZone&&v.lane===workZone.lane){
+   const rearEdge=workZone.y+workZone.length;
+   if(rearEdge<v.y+35&&v.y-rearEdge<700){
+    if(!obstacle||rearEdge>obstacle.y)obstacle={y:rearEdge,kind:'work'};
+   }else if(v.y>=workZone.y-30&&v.y<=rearEdge+30){
+    obstacle={y:rearEdge,kind:'work'};
+   }
+  }
+
+  if(obstacle){
+   const gap=v.y-obstacle.y;
+   const options=[v.lane-1,v.lane+1].filter(l=>l>=0&&l<laneCount&&safeGap(l,v.y,v,95));
+   if(v.pendingLane===undefined&&v.targetLane===v.lane&&options.length){
+    // 工事規制車線の車は、空きの大きい隣接車線を選んで早めに合流する。
+    options.sort((a,b)=>forwardClearance(b,v.y,v)-forwardClearance(a,v.y,v));
+    const dest=options[0];
+    v.pendingLane=dest;v.signalTimer=20;v.blinker=dest>v.lane?'right':'left';
+    v.changeCooldown=180;
+   }
+   if(!options.length||v.pendingLane!==undefined){
+    v.braking=true;
+    if(gap<185)v.holdForObstacle=true;
+   }
+  }else{
+   v.holdForObstacle=false;
+  }
+
+  // 前方車両・自車との車間維持（あおり運転車も含め、他車をすり抜けない）
+  let desired=v.cruiseSpeed;
+  const front=vehicles.filter(o=>o!==v&&(o.lane===v.lane||o.targetLane===v.lane)&&o.y<v.y&&v.y-o.y<150).sort((a,b)=>b.y-a.y)[0];
+  const playerFront=(gameState==='PLAYING'&&v.lane===playerLane&&PLAYER_Y<v.y&&v.y-PLAYER_Y<115);
+
+  if(front){
+   desired=Math.min(desired,Math.max(.45,front.cruiseSpeed*.55));
+   v.braking=true;
+  }else if(playerFront){
+   desired=Math.min(desired,Math.max(.5,currentSpeed*.6));
+   v.braking=true;
+  }else if(!obstacle&&!v.brakeWave){
+   v.braking=false;
+  }
+  if(v.brakeWave>0){v.brakeWave--;desired=Math.min(desired,.75);v.braking=true;}
+  if(v.holdForObstacle)desired=0;
+
+  v.y+=currentSpeed-desired;
+
+  // 障害物・前方車への物理的なめり込み（すり抜け）を絶対防止
+  if(obstacle&&v.holdForObstacle){
+   const stopY=obstacle.y+82;
+   if(v.y<stopY)v.y=stopY;
+  }
+  if(front && v.y < front.y + 72){
+   v.y = front.y + 72;
+  }
+
+  // 横移動（車線変更）と完了時のウインカー消灯
+  const dest=laneCenter(v.targetLane),dx=dest-v.x;
+  const maxStep=v.type==='tailgater'?2.3:1.65;
+  const step=clamp(dx,-maxStep,maxStep),nextX=v.x+step;
+  const targetOccupied=vehicles.some(o=>o!==v&&(o.lane===v.targetLane||o.targetLane===v.targetLane)&&Math.abs(o.y-v.y)<82&&Math.abs(o.x-nextX)<laneWidth()*.52);
+
+  if(v.lane!==v.targetLane&&targetOccupied){
+   v.x+=clamp(laneCenter(v.lane)-v.x,-1.3,1.3);
+   v.braking=true;
+  }else{
+   v.x=nextX;
+   if(Math.abs(dx)<2.2){
+    v.x=dest;
+    v.lane=v.targetLane;
+    // 車線変更が完了したらウインカーを確実に消す
+    v.blinker=null;
+    v.pendingLane=undefined;
+    v.signalTimer=0;
+   }
+  }
+
+  drawVehicle(v,false);
+  const vw=(v.kind==='truck'||v.kind==='bus')?32:(v.kind==='suv'||v.kind==='minivan'?30:27);
+  const vh=v.kind==='bus'?76:v.kind==='truck'?68:v.kind==='minivan'?59:v.kind==='suv'?55:48;
+  const overlapX=Math.abs(v.x-playerVisualX)<(vw+27)/2;
+  const overlapY=Math.abs(v.y-PLAYER_Y)<(vh+48)/2;
+  if(overlapX&&overlapY){gameOver(v.type==='tailgater'?'危険な車両と接触！巡回終了':'車両と接触！巡回終了');return;}
+  if(v.y>canvas.height+110||v.y<-170)vehicles.splice(i,1);
+ }
+}
+
+function spawnHazard(){
+ const lane=Math.floor(Math.random()*laneCount);
+ const debris=['tire','ladder','cardboard','wood'];
+ const type=Math.random()<.72?debris[Math.floor(Math.random()*debris.length)]:'accident';
+ hazards.push({type,lane,y:type==='accident'?-360:-220,blink:Math.floor(Math.random()*30),cleared:false});
+ const title=type==='accident'?'前方で事故発生':'道路上に落下物';
+ const sub=type==='accident'?'約300m先・前方の車両に注意':'約200m先・落下物を回避してください';
+ showRoadNotice('hazard',4,'緊急情報',title,sub,'work',210);
+ updateLed(type==='accident'?'【事故発生】前方に停止車両あり<br>十分に減速し回避してください':'【落下物注意】タイヤ・脚立・段ボール・木材など<br>周囲を確認して回避してください','red');
+}
+function drawHazard(h){
+ const x=laneCenter(h.lane),y=h.y;ctx.save();
+ // 回収アイテムを黄色～オレンジの光輪と点滅で強調。道路上の対象そのものは隠さない。
+ const pulse=(Math.sin((blinkFrame+h.blink)*.22)+1)/2;
+ const glow=h.type==='accident'?'#ff5a24':'#ffd21f';
+ ctx.save();ctx.globalAlpha=.34+.34*pulse;ctx.strokeStyle=glow;ctx.lineWidth=3+pulse*2;ctx.shadowColor=glow;ctx.shadowBlur=12+pulse*15;
+ ctx.beginPath();ctx.ellipse(x,y,h.type==='accident'?34:29,h.type==='accident'?43:27,0,0,Math.PI*2);ctx.stroke();
+ ctx.globalAlpha=.12+.12*pulse;ctx.fillStyle=glow;ctx.beginPath();ctx.ellipse(x,y,h.type==='accident'?31:26,h.type==='accident'?40:24,0,0,Math.PI*2);ctx.fill();ctx.restore();
+ if(h.type==='tire'){
+  ctx.fillStyle='#17191b';ctx.beginPath();ctx.ellipse(x,y,13,17,-.2,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#85898b';ctx.lineWidth=3;ctx.stroke();ctx.fillStyle='#555';ctx.beginPath();ctx.ellipse(x,y,5,8,-.2,0,Math.PI*2);ctx.fill();
+ }else if(h.type==='ladder'){
+  ctx.translate(x,y);ctx.rotate(-.12);ctx.strokeStyle='#c7b18b';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-19,-22);ctx.lineTo(19,22);ctx.moveTo(-11,-27);ctx.lineTo(27,17);ctx.stroke();ctx.lineWidth=3;for(let i=0;i<5;i++){const yy=-18+i*9;ctx.beginPath();ctx.moveTo(-15+i*9,yy);ctx.lineTo(-7+i*9,yy+8);ctx.stroke();}
+ }else if(h.type==='cardboard'){
+  ctx.fillStyle='#b68a53';roundRect(ctx,x-16,y-11,32,22,3);ctx.fill();ctx.strokeStyle='#ead0a4';ctx.lineWidth=2;ctx.stroke();ctx.beginPath();ctx.moveTo(x-14,y-8);ctx.lineTo(x+14,y+8);ctx.moveTo(x+14,y-8);ctx.lineTo(x-14,y+8);ctx.stroke();
+ }else if(h.type==='wood'){
+  ctx.save();ctx.translate(x,y);ctx.rotate(.18);ctx.fillStyle='#8a5a2b';roundRect(ctx,-19,-7,38,14,3);ctx.fill();ctx.strokeStyle='#d6a46c';ctx.lineWidth=2;ctx.stroke();ctx.restore();
+ }else{
+  ctx.translate(x,y);ctx.rotate(-.12);ctx.fillStyle='#34383d';roundRect(ctx,-27,-31,25,54,6);ctx.fill();ctx.fillStyle='#aeb7c0';roundRect(ctx,4,-23,25,54,6);ctx.fill();ctx.fillStyle='#273c4b';ctx.fillRect(-23,-23,17,12);ctx.fillRect(8,-15,17,12);const flash=Math.floor((blinkFrame+h.blink)/8)%2===0;ctx.fillStyle=flash?'#ffcc22':'#a51b22';ctx.fillRect(-27,-28,5,5);ctx.fillRect(-7,18,5,5);ctx.fillRect(4,-20,5,5);ctx.fillRect(24,20,5,5);ctx.fillStyle='#fff';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.fillText('事故',0,42);
+ }
+ ctx.restore();
+}
+function updateHazards(){
+ for(let i=hazards.length-1;i>=0;i--){const h=hazards[i];h.y+=currentSpeed;h.blink++;
+  drawHazard(h);
+  const hx=laneCenter(h.lane),hw=h.type==='accident'?34:(h.type==='ladder'?42:34),hh=h.type==='accident'?58:(h.type==='ladder'?48:34);
+  if(!h.cleared&&Math.abs(hx-playerVisualX)<(hw+27)/2 && Math.abs(h.y-PLAYER_Y)<(hh+48)/2){
+   h.cleared=true;
+   const bonus=h.type==='accident'?6000:(h.type==='ladder'?3000:(h.type==='tire'||h.type==='wood'?2000:1000));
+   score+=bonus;
+   const label=h.type==='accident'?'事故現場を処理！':(h.type==='ladder'?'脚立を回収！':h.type==='tire'?'タイヤを回収！':h.type==='wood'?'木材を回収！':'段ボールを回収！');
+   floatingTexts.push({text:label,x:180,y:PLAYER_Y-48,life:65,color:'#ffe34d'});
+   floatingTexts.push({text:'+'+bonus.toLocaleString('ja-JP')+' POINT',x:180,y:PLAYER_Y-24,life:75,color:'#ff9b32'});
+   updateLed(`【回収・処理成功！】${label}<br>安全確保ボーナス +${bonus.toLocaleString('ja-JP')}点`,'orange');
+   hazards.splice(i,1);continue;
+  }
+  if(h.y>canvas.height+100)hazards.splice(i,1);
+ }
+}
+function updateMidgameEvents(){
+ if(brakeWaveCooldown>0)brakeWaveCooldown--;
+ if(score>1000&&brakeWaveCooldown<=0){const candidates=vehicles.filter(v=>v.y>65&&v.y<PLAYER_Y-65&&v.lane===playerLane);if(candidates.length){const lead=candidates.sort((a,b)=>b.y-a.y)[0];lead.brakeWave=58;lead.braking=true;updateLed('【急ブレーキ注意】前方車両が急減速！<br>車間距離を確保してください','red');}brakeWaveCooldown=1050+Math.floor(Math.random()*500);}
+ if(hazardCooldown>0)hazardCooldown--;
+ if(score>4300&&hazardCooldown<=0&&hazards.length===0){spawnHazard();hazardCooldown=score>7000?1500+Math.floor(Math.random()*700):2300+Math.floor(Math.random()*800);}
+ if(workZoneCooldown>0)workZoneCooldown--;
+ if(score>2400&&workZoneCooldown<=0&&!workZone){
+  const choices=[0,laneCount-1];
+  const lane=choices[Math.floor(Math.random()*choices.length)];
+  workZone={lane,y:-1500,length:270,stage:0};
+  const sideName=lane===0?'左側':'右側';
+  updateLed(`⚠ この先、道路工事<br>700m先：${sideName}車線を規制予定`,'work');
+  workZoneCooldown=3000+Math.floor(Math.random()*900);
+ }
+ if(workZone){
+  workZone.y+=currentSpeed;
+  const stages=[-1320,-1080,-780];
+  const sideName=workZone.lane===0?'左側':'右側';
+  const centerText=laneCount===3?'中央車線は通行できます':'中央側の車線は通行できます';
+  const messages=[
+   `⚠ この先、道路工事<br>700m先：${sideName}車線を規制予定`,
+   `⚠ ${sideName}車線が規制されます<br>450m先：早めに中央側へ車線変更`,
+   `⚠ 工事区間まで約200m<br>${sideName}車線は通行止め・${centerText}`
+  ];
+  for(let st=workZone.stage;st<stages.length;st++){
+   if(workZone.y>=stages[st]){
+    workZone.stage=st+1;
+    updateLed(messages[st],'work');
+    if(st===1||st===2){
+     for(const v of vehicles){
+      if(v.lane===workZone.lane&&v.lane===v.targetLane){
+       const dests=[v.lane-1,v.lane+1].filter(l=>l>=0&&l<laneCount&&l!==workZone.lane&&safeGap(l,v.y,v,105));
+       if(dests.length){const dest=dests[0];v.pendingLane=dest;v.signalTimer=20;v.blinker=dest>v.lane?'right':'left';}
+      }
+     }
+    }
+   }
+  }
+  if(workZone.y>canvas.height+40){
+   workZone=null;
+   updateLed(`通常区間（${laneCount}車線）<br>工事規制区間を通過しました`,'normal');
+  }else if(workZone.y+workZone.length>PLAYER_Y-8&&workZone.y<PLAYER_Y+20&&playerLane===workZone.lane){
+   gameOver('工事規制区域に進入！巡回終了');return;
+  }
+ }
+}
+
+
+let jamQueue=null;
+function getJamLevel(){
+ // 1周目までは控えめ。1周達成後に中盤、2周目以降は本格的な混雑へ。
+ if(lapCount>=2||score>=4800)return 'heavy';
+ if(lapCount>=1||score>=2400)return 'medium';
+ return 'early';
+}
+function beginJamQueue(lanes,location){
+ // 先頭車から順番に流入。序盤は控えめ、中盤以降は車列を大幅に長くする。
+ if(jamQueue)return;
+ const level=getJamLevel();
+ const counts={
+  '錦橋':{early:5,medium:10,heavy:13},
+  '東別院':{early:5,medium:9,heavy:12},
+  '東別院入口':{early:4,medium:8,heavy:11},
+  '山王JCT':{early:5,medium:9,heavy:12},
+  '新洲崎JCT':{early:5,medium:9,heavy:12},
+  '丸田町JCT':{early:6,medium:9,heavy:12},
+  '鶴舞南JCT':{early:9,medium:12,heavy:15},
+  '明道町JCT':{early:3,medium:5,heavy:7}
+ };
+ const perLane=(counts[location]||{early:4,medium:7,heavy:9})[level];
+ jamQueue={lanes:[...lanes],location,level,perLane,created:0,nextFrame:0,total:lanes.length*perLane,key:lapCount+':'+spotIndex};
+ const levelText=level==='early'?'序盤の控えめな渋滞':level==='medium'?'中盤の混雑':'終盤の大規模な混雑';
+ updateLed(`【朝夕の自然渋滞】${location}付近<br>${levelText}・先頭車から徐々に車列が伸びます`,'red');
+ showRoadNotice('jam',5,'渋滞情報',location+'付近で自然渋滞',location==='錦橋'?'出口手前の右側車線に車列が伸びます':'混雑車線で車列が徐々に伸びます','work',260);
+}
+function updateJamQueue(){
+ if(!jamQueue)return;
+ if(jamQueue.nextFrame>0){jamQueue.nextFrame--;return;}
+ if(jamQueue.created>=jamQueue.total){jamQueue=null;return;}
+ // 複数車線の場合は交互に車両を追加し、各車線の列が少しずつ伸びる。
+ const lane=jamQueue.lanes[jamQueue.created%jamQueue.lanes.length];
+ const sameLane=vehicles.filter(v=>v.locationJam&&v.jamKey===jamQueue.key&&v.lane===lane);
+ const rear=sameLane.length?sameLane.reduce((a,b)=>a.y>b.y?a:b):null;
+ const y=rear?rear.y+112:-390;
+ if(!safeGap(lane,y,null,82)){
+  jamQueue.nextFrame=12;
+  return;
+ }
+ const isLeader=!rear;
+ const kind=carKind();
+ vehicles.push({type:'normal',kind,lane,targetLane:lane,x:laneCenter(lane),y,
+  // 先頭車は低速。後続車は通常速度で近づき、車間が縮まると連鎖的に制動する。
+  cruiseSpeed:isLeader?(.78+Math.random()*.18):(2.55+Math.random()*.42),
+  color:['#d9dce0','#42627d','#52745f','#8a5550','#4e535b'][Math.floor(Math.random()*5)],
+  blinker:null,changeCooldown:520,passedScored:false,braking:isLeader,pendingLane:undefined,signalTimer:0,
+  brakeWave:isLeader?145:0,noSignalMove:false,locationJam:true,jamKey:jamQueue.key});
+ jamQueue.created++;
+ jamQueue.nextFrame=jamQueue.level==='early'?22:18;
+}
+function updateLocationEvents(){
+ // 朝夕の時間帯に、実際の混雑地点で毎周遭遇できるようにする。序盤のスコア制限は設けない。
+ if(spotTimer<100||spotTimer>645)return;
+ const phase=getDayPhase().name;
+ if(phase!=='朝'&&phase!=='夕')return;
+ const idx=spotIndex%C1_SPOTS.length;
+ let location=null,lanes=[];
+ if(idx===3)location='丸田町JCT';
+ if(idx===4)location='鶴舞南JCT';
+ // 東別院出口付近から錦橋出口まで、各区間で右端車線の渋滞列を継続的に補充する。
+ if(idx===5)location='東別院';
+ if(idx===6)location='東別院入口';
+ if(idx===7)location='山王JCT';
+ if(idx===8)location='新洲崎JCT';
+ if(idx===9)location='錦橋';
+ if(idx===11)location='明道町JCT';
+ if(!location)return;
+ const key=lapCount+':'+idx;
+ if(jamTriggered[key])return;
+ jamTriggered[key]=true;
+ // 東別院から錦橋出口まで、およびその手前の丸田町・鶴舞南は朝夕とも右端車線のみ。
+ if(location==='鶴舞南JCT'){
+  // 鶴舞南付近は右側2車線を混雑させる。
+  lanes=[Math.max(0,laneCount-2),laneCount-1];
+ }else if(['錦橋','東別院','東別院入口','山王JCT','新洲崎JCT','丸田町JCT'].includes(location)){
+  // 錦橋出口手前を含む区間は一番右側車線のみ。
+  lanes=[laneCount-1];
+ }else if(location==='明道町JCT'){
+  // 錦橋出口を過ぎた明道町JCTは、中盤以降に複数車線へ混雑を広げる。
+  lanes=getJamLevel()==='early'?[0,Math.min(1,laneCount-1)]:Array.from({length:laneCount},(_,i)=>i);
+ }
+ if(lanes.length)beginJamQueue(lanes,location);
+}
+
+function drawWallSparks(){
+ for(let i=wallSparks.length-1;i>=0;i--){const p=wallSparks[i];ctx.save();ctx.strokeStyle='#ff9a32';ctx.lineWidth=2;ctx.globalAlpha=p.life/24;for(let k=0;k<5;k++){const a=(Math.PI*2*k/5)+blinkFrame*.08;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+Math.cos(a)*(8+(24-p.life)),p.y+Math.sin(a)*(8+(24-p.life)));ctx.stroke();}ctx.restore();if(--p.life<=0)wallSparks.splice(i,1);}
+}
+
+function loop(){if(gameState!=='PLAYING')return;blinkFrame++;elapsedFrames++;if(wallCooldown>0)wallCooldown--;tickRoadNotice();const phase=getDayPhase();const phaseEl=document.getElementById('phase-disp');if(phaseEl)phaseEl.innerText=phase.name;baseSpeed=Math.min(4.0,3.5+score*.00010);if(isBraking)currentSpeed=Math.max(.8,currentSpeed-.12);else currentSpeed+=(baseSpeed-currentSpeed)*.035;currentSpeed=Math.min(4.0,currentSpeed);score+=currentSpeed*.075;roadOffset=(roadOffset+currentSpeed*2)%36;if(playerBlinkerTimer>0&&!--playerBlinkerTimer)playerBlinker=null;
+ updateLaneSystem();document.getElementById('score-disp').innerText=Math.floor(score);document.getElementById('speed-disp').innerText=Math.min(60,Math.floor(currentSpeed*15));spotTimer++;const active=C1_SPOTS[spotIndex%C1_SPOTS.length];drawMiniMap(active.angle,lapCount);
+ if(spotTimer===100){currentSpot=active;const isExit=active.code.startsWith('C');const isEntry=active.code==='IN';const isJct=active.code==='JCT';const sub=isExit?'出口案内を確認・周囲の車両に注意':(isEntry?'入口からの合流車両に注意・車間距離を確保':(isJct?'JCTの分岐・合流に注意':active.hint));showRoadNotice('spot',1,active.code==='IN'?'入口':active.code,active.name,sub,(isExit||isEntry)?'exit':isJct?'jct':'lane',190);if(!workZone){updateLed(isExit?'出口案内を確認してください<br>周囲の車両に注意':(isEntry?'入口からの合流車両に注意<br>車間距離を確保してください':(isJct?'JCT・合流地点に接近<br>車間距離を確保してください':'前方の道路案内を確認してください')),'orange');}}
+ if(spotTimer===650&&currentSpot){passedCount++;const centerBonus=playerLane===Math.floor((laneCount-1)/2)||playerLane===Math.ceil((laneCount-1)/2);score+=centerBonus?250:100;floatingTexts.push({text:'巡回ポイント +' +(centerBonus?250:100),x:180,y:270,life:45,color:'#00ff66'});hideRoadNotice('spot');currentSpot=null;spotIndex++;const newLap=Math.floor(spotIndex/C1_SPOTS.length);if(newLap>lapCount){lapCount=newLap;floatingTexts.push({text:`C1 ${lapCount}周目達成！`,x:180,y:205,life:85,color:'#ffdf55'});}document.getElementById('lap-disp').innerText=lapCount;spotTimer=0;if(!workZone)updateLed(`通常区間（${laneCount}車線）<br>制限速度60 km/h・安全巡回中`,'normal');}
+ updateMidgameEvents();updateLocationEvents();updateJamQueue();if(gameState!=='PLAYING')return;
+ spawnClock++;const spawnInterval=Math.max(82,225-score*.035);
+ if(spawnClock>spawnInterval){
+  spawnClock=0;
+  if(vehicles.length<Math.min(4+Math.floor(score/950),10)){
+   const aggressive=score>800&&Math.random()<clamp((score-800)/6500,.035,.14);
+   spawnVehicle(aggressive?'aggressive':'normal');
+  }
+ }
+ drawRoad();
+ // 夕方・朝は従来の夜と同じ暗さ。夜はさらに暗くし、自車周辺の照射光だけを残す。
+ if(phase.name==='夕'||phase.name==='朝'){
+  ctx.save();ctx.fillStyle='rgba(5,10,28,.30)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.restore();
+ }else if(phase.name==='夜'){
+  ctx.save();ctx.fillStyle='rgba(3,7,20,.76)';ctx.fillRect(0,0,canvas.width,canvas.height);
+  // 自車の前方を中心に、ヘッドライトで照らされた路面を表現
+  const lx=playerVisualX||laneCenter(playerLane),ly=PLAYER_Y-105;
+  const beam=ctx.createRadialGradient(lx,ly,12,lx,ly,245);
+  beam.addColorStop(0,'rgba(255,235,175,.24)');
+  beam.addColorStop(.38,'rgba(255,225,155,.13)');
+  beam.addColorStop(1,'rgba(255,220,150,0)');
+  ctx.fillStyle=beam;ctx.fillRect(0,0,canvas.width,canvas.height);
+  // 左右前方にも弱い照射範囲を作り、隣車線の車両を認識しやすくする
+  for(const side of [-1,1]){
+   const sx=lx+side*48;
+   const sideBeam=ctx.createRadialGradient(sx,PLAYER_Y-135,4,sx,PLAYER_Y-135,150);
+   sideBeam.addColorStop(0,'rgba(255,238,190,.12)');
+   sideBeam.addColorStop(1,'rgba(255,238,190,0)');
+   ctx.fillStyle=sideBeam;ctx.fillRect(0,0,canvas.width,canvas.height);
+  }
+  ctx.restore();
+ }
+ updateHazards();if(gameState!=='PLAYING')return;updateVehicles();if(gameState!=='PLAYING')return;const targetX=laneCenter(playerLane);playerVisualX+=(targetX-playerVisualX)*.12;
+ 
+ // 側壁にぶつかってもゲームオーバーにならない（左右の壁で押し戻す処理）
+ const patrolHalfWidth=13.5;
+ if(playerVisualX-patrolHalfWidth<=roadLeft+5){playerVisualX=roadLeft+5+patrolHalfWidth;}
+ if(playerVisualX+patrolHalfWidth>=roadLeft+roadWidth-5){playerVisualX=roadLeft+roadWidth-5-patrolHalfWidth;}
+ 
+ const patrol={x:playerVisualX,y:PLAYER_Y,kind:'patrol',color:'#f3c928',braking:isBraking,blinker:playerBlinker};drawVehicle(patrol,true);drawWallSparks();
+ if(Math.floor(blinkFrame/42)%2===0){ctx.save();ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillStyle='#fff4a8';ctx.shadowColor='#ffb000';ctx.shadowBlur=8;ctx.fillText('巡 回 中',playerVisualX,PLAYER_Y+52);ctx.restore();}
+ for(let i=floatingTexts.length-1;i>=0;i--){const f=floatingTexts[i];ctx.fillStyle=f.color;ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText(f.text,f.x,f.y);f.y-=.8;if(!--f.life)floatingTexts.splice(i,1);}animId=requestAnimationFrame(loop);}
+drawMiniMap(-Math.PI/2,0);
+
+</script>
+</body>
+</html>
